@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.1.7";
-  const APP_BUILD=117;
+  const APP_VERSION="v1.1.8";
+  const APP_BUILD=118;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -23,10 +23,44 @@
   function accountIcon(account){if(isFoundation(account))return isRetirement(account)?"☀️":"🌱";return "";}
   function commandReflection(){
     const id=data.seasonId||"establish";
-    if(id==="grow")return "Consistency compounds over time.";
-    if(id==="steward")return "Small decisions today shape tomorrow.";
-    if(id==="preserve")return "Protecting what you've built creates lasting freedom.";
-    return "Building your foundation creates options later.";
+    const f=focus();
+    const notices=patternNotices(false);
+    const due=dueFutureChanges();
+    const reviewComplete=data.review?.status==="complete";
+    const pools={
+      establish:[
+        "Building your foundation creates options later.",
+        "Stability is built by returning each week.",
+        "A steady foundation can carry more than a rushed one.",
+        "Small corrections today make next month easier."
+      ],
+      grow:[
+        "Consistency compounds over time.",
+        "Growth is often quiet before it becomes visible.",
+        "The habits you repeat become the capacity you rely on.",
+        "What you strengthen now can serve future seasons."
+      ],
+      steward:[
+        "Small decisions today shape tomorrow.",
+        "Stewardship begins with noticing what has been entrusted to you.",
+        "Wise management often looks like calm attention.",
+        "Resources become more useful when they have a purpose."
+      ],
+      preserve:[
+        "Protecting what you've built creates lasting freedom.",
+        "Preservation is an active form of care.",
+        "What you protect today can support tomorrow's family.",
+        "A quiet plan can carry a long legacy."
+      ]
+    };
+    if(due.length)return "An upcoming change is ready for your attention.";
+    if(notices.length)return "A pattern is asking for a closer look this week.";
+    if(f&&isDebt(f))return "Every intentional payment creates room for what comes next.";
+    if(f&&isFoundation(f))return "Foundations grow through ordinary weeks faithfully reviewed.";
+    if(reviewComplete)return "Your week has been reviewed. Let the next decision be a thoughtful one.";
+    const list=pools[id]||pools.establish;
+    const idx=Math.abs(String(new Date().toDateString()+id).split("").reduce((sum,ch)=>sum+ch.charCodeAt(0),0))%list.length;
+    return list[idx];
   }
   function seasonWelcome(id){
     if(id==="establish")return "Every new chapter begins by strengthening the foundation beneath it.";
@@ -165,30 +199,54 @@
   }
 
   function renderCommand(){
-    const t=UI.todayParts();
     const f=focus();
     const reviewComplete=data.review?.status==="complete";
-    const promo=E.soonestPromo(data);
-    const promoLine=promo?`<div class="promoNote">${UI.escapeHtml(promo.name)} promo expires in ${promo.reviewsRemaining} week${promo.reviewsRemaining===1?"":"s"}</div>`:"";
     const progress=E.progressStatus(data);
     const seasonalSignal=seasonalChangeSignal();
-    const seasonalCard=seasonalSignal?`<div class="card commandCard seasonalNotice tappableCard" role="button" tabindex="0" data-action="beginSeasonalChange"><div class="row"><div><div class="label">We've noticed a seasonal change.</div><div class="sub">Seasons may be asking you to reconsider what deserves attention now.</div></div><div class="chev">›</div></div></div>`:"";
     const capacity=futureCapacitySummary();
-    const nextChange=nextFutureChange();
-    const futureCard=(capacity.count||capacity.due)?`<div class="card commandCard tappableCard" role="button" tabindex="0" data-action="showFutureChanges"><div class="row"><div><div class="label">Upcoming Changes</div><div class="value">${capacity.due?`${capacity.due} ready to review`:nextChange?UI.escapeHtml(nextChange.title||changeTypeLabel(nextChange.type)):"Planned Capacity"}</div><div class="sub">${capacity.monthly?`+${UI.money(capacity.monthly)}/mo planned`:""}${capacity.monthly&&capacity.oneTime?" • ":""}${capacity.oneTime?`${UI.money(capacity.oneTime)} one-time planned`:"Tap to add future capacity"}</div></div><div class="chev">›</div></div></div>`:"";
+    const upcoming=upcomingFutureChanges(365).slice(0,3);
+    const due=dueFutureChanges();
+    const notices=patternNotices(false);
+    const primaryNotice=notices[0];
+    const seasonObj=season(data.seasonId);
+    const reviewStatus=reviewComplete?"Complete":data.review?.status==="inProgress"?"In progress":data.review?.status==="allUpdated"?"Ready to close":"Ready";
+    const reviewSub=reviewComplete?"This week has been reviewed.":data.review?.status==="inProgress"?"Continue where you left off.":`${data.reviewDay} • ${data.reviewTime}`;
+    const upcomingMarkup=upcoming.length?upcoming.map(change=>`<button class="briefTimelineItem tappable" data-action="showFutureChangeDetail" data-id="${change.id}"><span><b>${UI.escapeHtml(change.title||changeTypeLabel(change.type))}</b><small>${UI.escapeHtml(UI.prettySnapshotDate(change.date))} • ${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</small></span><span class="miniChev">›</span></button>`).join(""):`<button class="briefTimelineItem tappable" data-action="showFutureChangeForm"><span><b>No planned changes yet</b><small>Add a bonus, raise, expense ending, or future redirect.</small></span><span class="miniChev">›</span></button>`;
+    const focusSub=f?focusReason(f):focusReason(null);
+    const seasonalCard=seasonalSignal?`<div class="briefSection seasonalNotice tappable" role="button" tabindex="0" data-action="beginSeasonalChange"><div class="briefKicker">We've noticed</div><div class="briefValue">A seasonal change</div><p>Seasons may be asking you to reconsider what deserves attention now.</p><span class="briefLink">Reflect first →</span></div>`:"";
+    const patternCard=primaryNotice?`<div class="briefSection patternBrief tappable" role="button" tabindex="0" data-screen="review"><div class="briefKicker">Pattern noticed</div><p>${UI.escapeHtml(primaryNotice.message)}</p></div>`:"";
+    const dueCard=due.length?`<div class="briefSection futureDue tappable" role="button" tabindex="0" data-action="showFutureChanges"><div class="briefKicker">Ready to revisit</div><div class="briefValue">${due.length} upcoming change${due.length===1?"":"s"}</div><p>${UI.escapeHtml(due[0].title||changeTypeLabel(due[0].type))} is ready for a decision.</p></div>`:"";
     screens.command.innerHTML=`
-      <div class="commandLogo">${UI.cycle(0,"tiny")}</div>
-      <div class="commandReflection">${UI.escapeHtml(commandReflection())}</div>
-      <div class="dateBlock compactDate"><div class="weekday">${t.weekday}</div><div class="date">${t.date}</div></div>
-      ${seasonalCard}
-      ${futureCard}
+      <div class="thisWeekLogo">${UI.cycle(0,"tiny")}</div>
+      <div class="thisWeekReflection">${UI.escapeHtml(commandReflection())}</div>
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version || "Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
-      <div class="card commandCard primaryReview tappableCard" role="button" tabindex="0" data-action="startReview">
-        <div class="row"><div><div class="value">Weekly Review</div><div class="status">${reviewComplete?"Complete":data.review?.status==="inProgress"?"In Progress":data.review?.status==="allUpdated"?"Ready to Close":"Ready"}</div><div class="sub">${reviewComplete?"Next Thursday":`${data.reviewDay} • ${data.reviewTime}`}</div></div><div class="chev">›</div></div>
-        <button class="btn compactBtn" data-action="startReview">${data.review?.status==="inProgress"?"Continue Weekly Review":data.review?.status==="allUpdated"?"Close Week":reviewComplete?"View This Week":"Start Weekly Review"}</button>
+      <div class="thisWeekTitle">This Week</div>
+      <p class="thisWeekLead">What deserves your attention right now.</p>
+      ${seasonalCard}
+      ${dueCard}
+      <div class="briefSection tappable" role="button" tabindex="0" data-action="showSeasonDetail">
+        <div class="briefKicker">Current Season</div>
+        <div class="briefValue">${seasonObj.icon} ${UI.escapeHtml(data.seasonName)}</div>
+        <p>${UI.escapeHtml(seasonObj.line)} Since ${UI.escapeHtml(data.seasonSince)}. ${UI.escapeHtml(progress)}</p>
       </div>
-      <div class="card commandCard tappableCard" role="button" tabindex="0" data-action="showSeasonDetail"><div class="row"><div><div class="label">Season</div><div class="value">${season(data.seasonId).icon} ${UI.escapeHtml(data.seasonName)}</div><div class="sub">Since ${UI.escapeHtml(data.seasonSince)} • ${progress}</div>${promoLine}</div><div class="chev">›</div></div></div>
-      <div class="card commandCard tappableCard" role="button" tabindex="0" data-action="showFocusDetail"><div class="row"><div><div class="label">Focus</div><div class="value">${f?UI.escapeHtml(f.name):completedAccounts().length?"Season Complete":"Add Account"}</div><div class="sub">${UI.escapeHtml(focusReason(f))}</div></div><div><div class="value alignRight">${f?UI.money(f.balance):"—"}</div><div class="chev compactChev">›</div></div></div></div>`;
+      <div class="briefSection tappable" role="button" tabindex="0" data-action="showFocusDetail">
+        <div class="briefKicker">Current Focus</div>
+        <div class="briefValue">${f?UI.escapeHtml(f.name):completedAccounts().length?"Season Complete":"Add Account"}</div>
+        <p>${UI.escapeHtml(focusSub)}</p>
+        ${f?`<div class="briefMetric"><span>Current balance</span><strong>${UI.money(f.balance)}</strong></div>`:""}
+      </div>
+      <div class="briefSection tappable" role="button" tabindex="0" data-action="showFutureChanges">
+        <div class="briefKicker">Upcoming Changes</div>
+        <div class="briefTimeline">${upcomingMarkup}</div>
+        ${(capacity.monthly||capacity.oneTime)?`<div class="briefMetric"><span>Planned capacity</span><strong>${capacity.monthly?`+${UI.money(capacity.monthly)}/mo`:""}${capacity.monthly&&capacity.oneTime?" • ":""}${capacity.oneTime?`${UI.money(capacity.oneTime)} one-time`:""}</strong></div>`:""}
+      </div>
+      ${patternCard}
+      <div class="briefSection reviewBrief tappable" role="button" tabindex="0" data-action="startReview">
+        <div class="briefKicker">Weekly Review</div>
+        <div class="briefValue">${reviewStatus}</div>
+        <p>${UI.escapeHtml(reviewSub)}</p>
+        <button class="btn compactBtn" data-action="startReview">${data.review?.status==="inProgress"?"Continue Review":data.review?.status==="allUpdated"?"Close Week":reviewComplete?"View This Week":"Begin Review"}</button>
+      </div>`;
   }
 
   function reviewAccounts(){return E.reviewOrder(data);}

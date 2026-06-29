@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#FAF8F2">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=1.1.7">
+  <link rel="stylesheet" href="style.css?v=1.1.8">
   <title>Seasons</title>
   <script>
-    window.SEASONS_VERSION = "v1.1.7";
+    window.SEASONS_VERSION = "v1.1.8";
     window.SEASONS_BOOT_ERRORS = [];
     window.addEventListener("error", function(event){
       window.SEASONS_BOOT_ERRORS.push((event.message || "Error") + (event.filename ? " @ " + event.filename.split('/').pop() + ":" + event.lineno : ""));
@@ -32,16 +32,16 @@
     </main>
 
     <nav class="nav" aria-label="Primary navigation">
-      <button class="active" data-screen="command" aria-label="Command"><span class="navIcon navCommand"></span><span>Command</span></button>
-      <button data-screen="review" aria-label="Review"><span class="navIcon navReview"></span><span>Review</span></button>
+      <button class="active" data-screen="command" aria-label="This Week"><span class="navIcon navCommand"></span><span>This Week</span></button>
       <button data-screen="accounts" aria-label="Accounts"><span class="navIcon navAccounts"></span><span>Accounts</span></button>
+      <button class="reviewNav" data-screen="review" aria-label="Review"><span class="navIcon navReview"></span><span>Review</span></button>
       <button data-screen="settings" aria-label="Settings"><span class="navIcon navSettings"></span><span>Settings</span></button>
     </nav>
   </div>
 
-  <script src="storage.js?v=1.1.7"></script>
-  <script src="engine.js?v=1.1.7"></script>
-  <script src="ui.js?v=1.1.7"></script>
-  <script src="app.js?v=1.1.7"></script>
+  <script src="storage.js?v=1.1.8"></script>
+  <script src="engine.js?v=1.1.8"></script>
+  <script src="ui.js?v=1.1.8"></script>
+  <script src="app.js?v=1.1.8"></script>
 </body>
 </html>

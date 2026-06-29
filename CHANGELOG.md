@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.8 — This Week UX Release
+- Renamed the former Command Center navigation label to This Week.
+- Redesigned the home screen as a weekly briefing around what deserves attention this week.
+- Added a larger, center-weighted Review navigation action.
+- Added contextual reflection library for seasons, focus accounts, patterns, and upcoming changes.
+- Surfaced Seasonal Change, Future Changes, Pattern Noticed, Current Season, Current Focus, and Weekly Review in one calmer flow.
+- Added Upcoming Changes timeline to the This Week page.
+- Version bumped to v1.1.8 / Build 118.
+
 ## v1.1.7 — Future Changes & Redirected Cash Flow
 
 - Added Future Changes for anticipated financial capacity changes.
