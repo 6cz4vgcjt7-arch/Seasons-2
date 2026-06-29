@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.1.6";
-  const APP_BUILD=116;
+  const APP_VERSION="v1.1.7";
+  const APP_BUILD=117;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -79,6 +79,18 @@
     if(data.strategy==="snowball")return "This is your smallest active balance. Completing it can simplify your monthly cash flow.";
     return "Every extra dollar sent here saves more interest than your other active debts.";
   }
+
+  function futureChanges(){data.futureChanges=data.futureChanges||[];return data.futureChanges.filter(change=>!change.archived).sort((a,b)=>new Date(a.date||"2999-12-31")-new Date(b.date||"2999-12-31"));}
+  function activeFutureChanges(){return futureChanges().filter(change=>change.status!=="complete");}
+  function changeTypeLabel(type){const labels={monthlyIncrease:"Monthly capacity",expenseEnding:"Expense ending",debtPayoff:"Debt payoff",bonus:"Bonus or windfall",incomeIncrease:"Income increase",other:"Upcoming change"};return labels[type]||labels.other;}
+  function changeFrequencyLabel(change){return change.frequency==="oneTime"?"One-time":"Monthly";}
+  function futureChangeDestination(change){if(change.destinationAccountId){const account=(data.accounts||[]).find(a=>a.id===change.destinationAccountId);if(account)return account.name;}return change.destination||"Decide later";}
+  function futureChangeIsDue(change){if(!change.date || change.status==="complete")return false;const due=new Date(change.date+"T23:59:59");return due<=new Date();}
+  function dueFutureChanges(){return activeFutureChanges().filter(futureChangeIsDue);}
+  function upcomingFutureChanges(days=90){const now=new Date();const end=new Date();end.setDate(end.getDate()+days);return activeFutureChanges().filter(change=>{if(!change.date)return false;const d=new Date(change.date+"T12:00:00");return d>=now && d<=end;});}
+  function futureCapacitySummary(){const changes=activeFutureChanges();const monthly=changes.filter(c=>c.frequency!=="oneTime").reduce((sum,c)=>sum+(Number(c.amount)||0),0);const oneTime=changes.filter(c=>c.frequency==="oneTime").reduce((sum,c)=>sum+(Number(c.amount)||0),0);return {monthly,oneTime,count:changes.length,due:dueFutureChanges().length,upcoming:upcomingFutureChanges(90).length};}
+  function nextFutureChange(){return activeFutureChanges().find(change=>change.date)||null;}
+  function redirectLine(change){const destination=futureChangeDestination(change);if(destination==="Decide later")return "Seasons will ask how you want to use this capacity when it arrives.";return `Planned direction: ${destination}.`;}
   function show(screen){UI.showScreen(screen);UI.setActiveNav(screen==="onboarding"?"command":screen);}
 
   function render(screen){
@@ -161,11 +173,15 @@
     const progress=E.progressStatus(data);
     const seasonalSignal=seasonalChangeSignal();
     const seasonalCard=seasonalSignal?`<div class="card commandCard seasonalNotice tappableCard" role="button" tabindex="0" data-action="beginSeasonalChange"><div class="row"><div><div class="label">We've noticed a seasonal change.</div><div class="sub">Seasons may be asking you to reconsider what deserves attention now.</div></div><div class="chev">›</div></div></div>`:"";
+    const capacity=futureCapacitySummary();
+    const nextChange=nextFutureChange();
+    const futureCard=(capacity.count||capacity.due)?`<div class="card commandCard tappableCard" role="button" tabindex="0" data-action="showFutureChanges"><div class="row"><div><div class="label">Upcoming Changes</div><div class="value">${capacity.due?`${capacity.due} ready to review`:nextChange?UI.escapeHtml(nextChange.title||changeTypeLabel(nextChange.type)):"Planned Capacity"}</div><div class="sub">${capacity.monthly?`+${UI.money(capacity.monthly)}/mo planned`:""}${capacity.monthly&&capacity.oneTime?" • ":""}${capacity.oneTime?`${UI.money(capacity.oneTime)} one-time planned`:"Tap to add future capacity"}</div></div><div class="chev">›</div></div></div>`:"";
     screens.command.innerHTML=`
       <div class="commandLogo">${UI.cycle(0,"tiny")}</div>
       <div class="commandReflection">${UI.escapeHtml(commandReflection())}</div>
       <div class="dateBlock compactDate"><div class="weekday">${t.weekday}</div><div class="date">${t.date}</div></div>
       ${seasonalCard}
+      ${futureCard}
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version || "Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
       <div class="card commandCard primaryReview tappableCard" role="button" tabindex="0" data-action="startReview">
         <div class="row"><div><div class="value">Weekly Review</div><div class="status">${reviewComplete?"Complete":data.review?.status==="inProgress"?"In Progress":data.review?.status==="allUpdated"?"Ready to Close":"Ready"}</div><div class="sub">${reviewComplete?"Next Thursday":`${data.reviewDay} • ${data.reviewTime}`}</div></div><div class="chev">›</div></div>
@@ -510,6 +526,7 @@
       <div class="card reflectionList">${observations.map(o=>`<div class="reflectionRow"><span>${UI.escapeHtml(o.label)}</span><strong class="${o.kind}">${o.value}</strong></div>`).join("")}</div>
       ${patternNotices(true).length?`<div class="card quietMessage"><div class="label">Pattern noticed</div>${patternNotices(true).map(n=>`<p class="sub"><b>${UI.escapeHtml(n.label)}</b>: ${UI.escapeHtml(n.message)}</p>`).join("")}<p class="sub">Seasons notices the pattern. You still choose the next step.</p></div>`:""}
       ${seasonalChangeSignal()?`<div class="card quietMessage tappableCard" data-action="beginSeasonalChange"><div class="label">We've noticed a seasonal change.</div><p class="sub">After this review, Seasons may ask whether your current season still fits.</p><div class="miniChev">›</div></div>`:""}
+      ${dueFutureChanges().length?`<div class="card quietMessage tappableCard" data-action="showFutureChanges"><div class="label">Upcoming change ready</div>${dueFutureChanges().slice(0,2).map(c=>`<p class="sub"><b>${UI.escapeHtml(c.title||changeTypeLabel(c.type))}</b>: ${UI.escapeHtml(redirectLine(c))}</p>`).join("")}<div class="miniChev">›</div></div>`:""}
       <button class="btn" data-action="closeWeek">Close Week</button>`;
   }
 
@@ -547,7 +564,7 @@
       <div class="sectionLabel">Foundations</div>
       <div class="accountList">${foundations.length?foundations.map(row).join(""):`<div class="empty">No foundations yet.</div>`}</div>
       ${complete.length?`<div class="sectionLabel completedLabel">Completed</div><div class="accountList">${complete.map(a=>`<div class="accountRow completedRow" data-action="showAccountDetail" data-id="${a.id}"><div class="accountMeta"><div><span class="check miniCheck">✓</span>${UI.escapeHtml(a.name)}</div><div class="sub">Completed ${a.completedAt?UI.prettySnapshotDate(a.completedAt):""}</div></div><div>${UI.money(0)}</div></div>`).join("")}</div>`:""}
-      <button class="btn secondary" data-action="showAddAccount">Add Account</button><button class="btn secondary" data-action="exportBalancesExcel">Export Balances to Excel</button>`;
+      <button class="btn secondary" data-action="showAddAccount">Add Account</button><button class="btn secondary" data-action="showFutureChanges">Future Changes</button><button class="btn secondary" data-action="exportBalancesExcel">Export Balances to Excel</button>`;
   }
 
   function renderAccountDetail(account){
@@ -612,11 +629,50 @@
     show("accounts");setTimeout(()=>wirePromoForm(),0);
   }
 
+
+  function renderFutureChanges(){
+    const changes=futureChanges();
+    const summary=futureCapacitySummary();
+    const row=change=>`<div class="accountRow" data-action="showFutureChangeDetail" data-id="${change.id}"><div class="accountMeta"><div>${futureChangeIsDue(change)?'<span class="focusDot"></span>':''}${UI.escapeHtml(change.title||changeTypeLabel(change.type))}</div><div class="sub">${changeTypeLabel(change.type)} • ${change.frequency==="oneTime"?"One-time":"Monthly"} • ${change.date?UI.prettyDate(change.date):"No date"}</div></div><div class="row"><span>${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</span><span class="miniChev">›</span></div></div>`;
+    screens.accounts.innerHTML=`
+      <div class="reviewHeader"><button class="back" data-action="backToAccounts">‹</button><div class="reviewTitle">Future Changes</div><button class="smallBtn" data-action="showFutureChangeForm">＋</button></div>
+      <div class="card quietMessage"><div class="label">Planned future capacity</div><div class="value smallValue">${summary.monthly?`+${UI.money(summary.monthly)}/mo`:"No monthly changes yet"}</div><p class="sub">${summary.oneTime?`${UI.money(summary.oneTime)} in one-time changes is also planned. `:""}Use this for things you already anticipate: bonuses, tax refunds, raises, a loan ending, or daycare ending.</p></div>
+      ${dueFutureChanges().length?`<div class="sectionLabel">Ready to Review</div><div class="accountList">${dueFutureChanges().map(row).join("")}</div>`:""}
+      <div class="sectionLabel">Upcoming</div>
+      <div class="accountList">${changes.length?changes.map(row).join(""):`<div class="empty">No future changes yet.</div>`}</div>
+      <button class="btn" data-action="showFutureChangeForm">Add Future Change</button>`;
+    show("accounts");
+  }
+
+  function renderFutureChangeDetail(change){
+    screens.accounts.innerHTML=`
+      <div class="reviewHeader"><button class="back" data-action="showFutureChanges">‹</button><div class="reviewTitle">Future Change</div><button class="smallBtn" data-action="editFutureChange" data-id="${change.id}">Edit</button></div>
+      ${futureChangeIsDue(change)?`<div class="pill detailPill">Ready to Review</div>`:""}
+      <div class="card detailCard"><div class="label">${UI.escapeHtml(changeTypeLabel(change.type))}</div><div class="value">${UI.escapeHtml(change.title||"Upcoming change")}</div><p class="sub">${UI.escapeHtml(change.note||"A planned change that may affect what deserves attention.")}</p><div class="detailRow"><span>Date</span><strong>${change.date?UI.prettyDate(change.date):"—"}</strong></div><div class="detailRow"><span>Amount</span><strong>${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</strong></div><div class="detailRow"><span>Planned Direction</span><strong>${UI.escapeHtml(futureChangeDestination(change))}</strong></div></div>
+      <div class="card quietMessage"><div class="label">When this arrives</div><p class="sub">${UI.escapeHtml(redirectLine(change))}</p></div>
+      ${futureChangeIsDue(change)?`<button class="btn" data-action="completeFutureChange" data-id="${change.id}">Mark Reviewed</button><button class="btn secondary" data-action="snoozeFutureChange" data-id="${change.id}">Remind Me Later</button>`:""}
+      <button class="btn danger" data-action="archiveFutureChange" data-id="${change.id}">Archive</button>`;
+    show("accounts");
+  }
+
+  function renderFutureChangeForm(change=null){
+    const isEdit=Boolean(change);
+    const accounts=activeAccounts();
+    screens.accounts.innerHTML=`
+      <div class="reviewHeader"><button class="back" data-action="showFutureChanges">‹</button><div class="reviewTitle">${isEdit?"Edit":"Add"} Future Change</div><span></span></div>
+      <div class="card"><div class="label">What is changing?</div><select id="futureType"><option value="monthlyIncrease" ${change?.type==="monthlyIncrease"?"selected":""}>Available amount to pay debt increases</option><option value="expenseEnding" ${change?.type==="expenseEnding"?"selected":""}>An expense ends</option><option value="debtPayoff" ${change?.type==="debtPayoff"?"selected":""}>A debt payment frees up</option><option value="bonus" ${change?.type==="bonus"?"selected":""}>Holiday bonus / windfall</option><option value="incomeIncrease" ${change?.type==="incomeIncrease"?"selected":""}>Income increase</option><option value="other" ${change?.type==="other"?"selected":""}>Something else</option></select></div>
+      <div class="card"><label class="label" for="futureTitle">Name</label><input id="futureTitle" value="${UI.escapeHtml(change?.title||"")}" placeholder="e.g., Holiday bonus or Daycare ends"><label class="label" for="futureDate">Expected Date</label><input id="futureDate" type="date" value="${UI.escapeHtml(change?.date||"")}"><label class="label" for="futureAmount">Amount</label><input id="futureAmount" type="number" inputmode="decimal" value="${Number(change?.amount)||0}"><label class="label" for="futureFrequency">How often?</label><select id="futureFrequency"><option value="monthly" ${change?.frequency!=="oneTime"?"selected":""}>Monthly capacity</option><option value="oneTime" ${change?.frequency==="oneTime"?"selected":""}>One-time amount</option></select></div>
+      <div class="card"><label class="label" for="futureDestination">Where should this capacity go?</label><select id="futureDestination"><option value="">Decide later</option><option value="focus" ${change?.destination==="Current Focus Account"?"selected":""}>Current Focus Account</option><option value="Emergency Fund" ${change?.destination==="Emergency Fund"?"selected":""}>Emergency Fund</option><option value="Retirement" ${change?.destination==="Retirement"?"selected":""}>Retirement</option>${accounts.map(a=>`<option value="acct:${a.id}" ${change?.destinationAccountId===a.id?"selected":""}>${UI.escapeHtml(a.name)}</option>`).join("")}</select><p class="sub">Seasons will not move money. It will remember what you intended and ask when the change arrives.</p></div>
+      <div class="card"><label class="label" for="futureNote">Notes</label><textarea id="futureNote" placeholder="Optional">${UI.escapeHtml(change?.note||"")}</textarea></div>
+      <button class="btn" data-action="saveFutureChange" data-id="${change?.id||""}">${isEdit?"Save Changes":"Save Future Change"}</button>`;
+    show("accounts");
+  }
+
   function renderSettings(){
     const dev=data.devMode;
     screens.settings.innerHTML=`<div class="screenTitle">Settings</div>
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version||"Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
-      <div class="card"><div class="settingsGroup"><div class="label">Preferences</div><button class="settingRow tappable" data-action="editReviewDay"><span>Weekly Review Day</span><span><span class="muted">${UI.escapeHtml(data.reviewDay)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editReviewTime"><span>Review Time</span><span><span class="muted">${UI.escapeHtml(data.reviewTime)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editStrategy"><span>Focus Strategy</span><span><span class="muted">${UI.strategyLabel(data.strategy)}</span><span class="miniChev">›</span></span></button></div></div>
+      <div class="card"><div class="settingsGroup"><div class="label">Preferences</div><button class="settingRow tappable" data-action="editReviewDay"><span>Weekly Review Day</span><span><span class="muted">${UI.escapeHtml(data.reviewDay)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editReviewTime"><span>Review Time</span><span><span class="muted">${UI.escapeHtml(data.reviewTime)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editStrategy"><span>Focus Strategy</span><span><span class="muted">${UI.strategyLabel(data.strategy)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="showFutureChanges"><span>Future Changes</span><span><span class="muted">${activeFutureChanges().length}</span><span class="miniChev">›</span></span></button></div></div>
       <div class="card"><div class="settingsGroup"><div class="label">Testing</div><button class="settingRow tappable" data-action="toggleBetaMode"><span>Beta Mode</span><span><span class="muted">${betaMode()?"On":"Off"}</span><span class="miniChev">›</span></span></button>${betaMode()?`<button class="settingRow tappable" data-action="seedBetaReviews"><span>Seed 4 Test Reviews</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="clearSnapshots"><span>Clear Review History</span><span class="miniChev">›</span></button><div class="sub">Beta Mode lets you enter multiple backdated Weekly Reviews to test pattern recognition.</div>`:""}</div></div>
       <div class="card"><div class="label">Privacy</div><div class="value">Local</div><div class="sub">No bank connections. Your information stays on this device unless you export it.</div></div>
       <div class="card"><button class="settingRow tappable" data-action="tapVersion"><span>Version</span><span><span class="muted">${APP_VERSION} · Build ${APP_BUILD}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="forceUpdateCheck"><span>Check for Update</span><span class="miniChev">›</span></button></div>
@@ -697,6 +753,10 @@
         ]);
       });
     });
+    rows.push([]);
+    rows.push(["Future Changes"]);
+    rows.push(["Title","Type","Date","Amount","Frequency","Planned Direction","Status","Notes"]);
+    futureChanges().forEach(change=>rows.push([change.title||"",changeTypeLabel(change.type),change.date||"",Number(change.amount)||0,changeFrequencyLabel(change),futureChangeDestination(change),change.status||"planned",change.note||""]));
     const html=`<html><head><meta charset="utf-8"></head><body><table>${rows.map(row=>`<tr>${row.map(cell=>`<td>${UI.escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</table></body></html>`;
     const blob=new Blob([html],{type:"application/vnd.ms-excel"});
     const link=document.createElement("a");
@@ -775,6 +835,14 @@
     editAccount(node){const account=data.accounts.find(a=>a.id===node.dataset.id);if(account)renderAccountForm(account);},
     markPaidOff(node){const account=data.accounts.find(a=>a.id===node.dataset.id);if(account){completeAccount(account);save();renderAccountDetail(account);}},
     backToAccounts(){renderAccounts();show("accounts");},
+    showFutureChanges(){renderFutureChanges();},
+    showFutureChangeForm(){renderFutureChangeForm();},
+    showFutureChangeDetail(node){const change=futureChanges().find(c=>c.id===node.dataset.id);if(change)renderFutureChangeDetail(change);},
+    editFutureChange(node){const change=futureChanges().find(c=>c.id===node.dataset.id);if(change)renderFutureChangeForm(change);},
+    saveFutureChange(node){data.futureChanges=data.futureChanges||[];let change=data.futureChanges.find(c=>c.id===node.dataset.id);if(!change){change={id:`fc_${Date.now()}`,status:"planned",archived:false};data.futureChanges.push(change);}const dest=UI.byId("futureDestination")?.value||"";change.type=UI.byId("futureType")?.value||"other";change.title=UI.byId("futureTitle")?.value||changeTypeLabel(change.type);change.date=UI.byId("futureDate")?.value||"";change.amount=Number(UI.byId("futureAmount")?.value)||0;change.frequency=UI.byId("futureFrequency")?.value||"monthly";change.destinationAccountId=dest.startsWith("acct:")?dest.slice(5):"";change.destination=dest==="focus"?"Current Focus Account":dest.startsWith("acct:")?"":dest||"Decide later";change.note=UI.byId("futureNote")?.value||"";change.status="planned";save();renderFutureChangeDetail(change);},
+    completeFutureChange(node){const change=data.futureChanges?.find(c=>c.id===node.dataset.id);if(change){change.status="complete";change.completedAt=new Date().toISOString();saveRender("accounts");renderFutureChanges();}},
+    snoozeFutureChange(node){const change=data.futureChanges?.find(c=>c.id===node.dataset.id);if(change){const d=new Date();d.setDate(d.getDate()+30);change.date=d.toISOString().slice(0,10);save();renderFutureChangeDetail(change);}},
+    archiveFutureChange(node){const change=data.futureChanges?.find(c=>c.id===node.dataset.id);if(change&&confirm("Archive this future change?")){change.archived=true;save();renderFutureChanges();}},
     saveAccount(node){const id=node.dataset.id;let account=data.accounts.find(a=>a.id===id);if(!account){account={id:`acct_${Date.now()}`,archived:false,paidOff:false,completedAt:null};data.accounts.push(account);}account.name=UI.byId("formName").value||"Account";account.type=UI.byId("formType").value;account.balance=Number(UI.byId("formBalance").value)||0;const foundation=isFoundation(account);if(foundation){account.apr=0;account.min=0;account.statementDay="";account.promoEnabled=false;account.promoApr=0;account.promoExpires="";account.standardApr=0;}else{account.apr=Number(UI.byId("formApr")?.value)||0;account.min=Number(UI.byId("formMin")?.value)||0;account.statementDay=UI.byId("formStatementDay")?.value||"";account.promoEnabled=Boolean(UI.byId("formPromo")?.checked);account.promoApr=Number(UI.byId("formPromoApr")?.value)||0;account.promoExpires=UI.byId("formPromoExpires")?.value||"";account.standardApr=Number(UI.byId("formStandardApr")?.value)||account.apr;}account.note=UI.byId("formNote").value||"";if(!data.startingAmount)data.startingAmount=E.totalBalance(activeAccounts(data));save();renderAccountDetail(account);},
     archiveAccount(node){const account=data.accounts.find(a=>a.id===node.dataset.id);if(account&&confirm("Archive this account?")){account.archived=true;saveRender("accounts");}},
     exportBalancesExcel(){exportBalancesExcel();},

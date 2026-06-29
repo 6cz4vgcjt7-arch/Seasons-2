@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.7 — Future Changes & Redirected Cash Flow
+
+- Added Future Changes for anticipated financial capacity changes.
+- Supports monthly capacity changes and one-time windfalls.
+- Added planned destination/redirect intent for future capacity.
+- Added Command Center upcoming change card.
+- Added Weekly Review prompt when planned changes are ready to revisit.
+- Added Future Changes to Excel export.
+- Version bumped to v1.1.7 / Build 117.
+
 ## v1.1.6 — Seasonal Change Reflection
 
 - Adds a conservative Seasonal Change detection engine.
