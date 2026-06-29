@@ -1,15 +1,9 @@
 # GitHub Upload Notes
 
-Upload all files in this ZIP to the root of the `Seasons` repository.
+Seasons v1.3 — The Attention Release
 
-Commit message:
-Seasons v1.2.1 promo APR and future change projections
-
-After upload:
-1. Wait for GitHub Pages to finish deploying.
-2. Open the app and confirm Settings shows v1.2.1 / Build 121.
-3. Add or edit a debt account, enter a Standard APR, enable Promotional APR, and confirm Standard APR After autofills.
-4. Add a Future Change pointed to the Current Focus Account and confirm the detail page estimates payoff timing impact.
-5. In Beta Mode, seed or enter several reviews and confirm This Week still shows pattern/seasonal notices correctly.
-
-If the app still shows an older build, clear the browser/PWA cache or remove and re-add the PWA.
+1. Upload all files to the GitHub Pages branch/root.
+2. Open the app and confirm Settings shows v1.3 / Build 130.
+3. Add or edit a debt account with Promotional APR enabled. Confirm the reminder checkbox and timing selector appear.
+4. Confirm This Week shows promo APR reminders under the “We’ve noticed...” / On the Horizon experience when inside the reminder window.
+5. Confirm the bottom nav says Journal, not History.

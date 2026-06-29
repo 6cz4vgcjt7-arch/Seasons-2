@@ -2,9 +2,9 @@
 
 **Seasons is a weekly financial habit app that helps people build lasting financial achievements through intentional observation, reflection, and steady progress.**
 
-This is the **v1.2.1 Promo APR and Future Change Projections** prototype release. It continues the founder-track PWA work and keeps the app local-only.
+This is the **v1.3 The Attention Release** prototype release. It continues the founder-track PWA work and keeps the app local-only.
 
-## What v1.2.1 includes
+## What v1.3 includes
 
 - First-launch onboarding: **Discover Your Current Season**
 - Four Financial Seasons: **Establish, Grow, Steward, Preserve**
@@ -14,10 +14,10 @@ This is the **v1.2.1 Promo APR and Future Change Projections** prototype release
 - Several-week balance pattern recognition across active accounts
 - Gentle off-track notices during Weekly Review
 - Seasonal Change reflection flow: “We’ve noticed a seasonal change”
-- Future Changes with projected payoff impact for the Current Focus Account
-- Excel-compatible export of current balances, review history, and Future Changes
+- On the Horizon items with projected payoff impact for the Current Focus Account
+- Excel-compatible export of current balances, review history, and On the Horizon
 - This Week date range and weekly rhythm status
-- History financial journal
+- Journal financial record
 - Version/build display and developer tools
 - Local-only storage in the browser
 
@@ -29,4 +29,10 @@ During this prototype stage, use demo or approximate data until the privacy and 
 
 ## Version
 
-v1.2.1 · Build 121
+v1.3 · Build 130
+
+
+## v1.3 additions
+- Promo APR reminder checkbox with timing selection.
+- This Week surfaces promo reminders and planned changes under On the Horizon.
+- Journal replaces the former History navigation.

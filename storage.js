@@ -29,6 +29,8 @@
     promoApr:Number(account.promoApr)||0,
     promoExpires:account.promoExpires || "",
     standardApr:Number(account.standardApr)||0,
+    promoReminderEnabled:Boolean(account.promoReminderEnabled),
+    promoReminderDays:Number(account.promoReminderDays)||30,
     archived:Boolean(account.archived),
     paidOff:Boolean(account.paidOff),
     completedAt:account.completedAt || null

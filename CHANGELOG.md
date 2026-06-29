@@ -1,3 +1,12 @@
+# Changelog
+
+## v1.3 — The Attention Release
+- Renamed History navigation to Journal.
+- Replaced user-facing Future Changes language with On the Horizon.
+- This Week now treats upcoming planned changes and promo APR reminders as horizon/attention items.
+- Added promo APR reminder checkbox and reminder timing selection.
+- Promo APR reminders surface on This Week with calm “We’ve noticed...” language.
+- Updated build to v1.3 / Build 130.
 
 ## v1.2.1 — Promo APR and Future Change Projections
 

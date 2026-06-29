@@ -43,3 +43,14 @@ It should not feel like a noisy dashboard or engagement machine.
 - Complexity is earned.
 - Every new feature must strengthen the Weekly Review.
 - Seasons recommends; users decide.
+
+
+## v1.3 Product Language
+
+- Navigation should be obvious; the experience should be memorable.
+- The past lives in Journal.
+- The present lives in This Week.
+- The future appears On the Horizon.
+- Journal records significance, not activity.
+- Every recommendation should explain why the user is seeing it.
+- Seasons observes before it advises.

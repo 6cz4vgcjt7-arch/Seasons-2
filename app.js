@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.2.1";
-  const APP_BUILD=121;
+  const APP_VERSION="v1.3";
+  const APP_BUILD=130;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -26,6 +26,7 @@
     const f=focus();
     const notices=patternNotices(false);
     const due=dueFutureChanges();
+    const promoReminders=duePromoReminders();
     const reviewComplete=data.review?.status==="complete";
     const pools={
       establish:[
@@ -53,7 +54,8 @@
         "A quiet plan can carry a long legacy."
       ]
     };
-    if(due.length)return "An upcoming change is ready for your attention.";
+    if(promoReminders.length)return "A promotional rate is on the horizon. Planning ahead creates more options.";
+    if(due.length)return "Something on the horizon is ready for your attention.";
     if(notices.length)return "A pattern is asking for a closer look this week.";
     if(f&&isDebt(f))return "Every intentional payment creates room for what comes next.";
     if(f&&isFoundation(f))return "Foundations grow through ordinary weeks faithfully reviewed.";
@@ -189,6 +191,52 @@
     const verb=change.frequency==="oneTime"?`Putting ${amountText}`:`Redirecting ${amountText}`;
     return `${verb} toward ${f.name} could pay it off about ${weeksSaved} week${weeksSaved===1?"":"s"} sooner.`;
   }
+  function promoReminderTimingLabel(days){
+    const n=Number(days)||30;
+    return `${n} day${n===1?"":"s"} before`;
+  }
+  function promoReminderIsDue(account){
+    if(!account || !isDebt(account) || !account.promoEnabled || !account.promoReminderEnabled || !account.promoExpires)return false;
+    const days=E.daysUntil?E.daysUntil(account.promoExpires):null;
+    const windowDays=Number(account.promoReminderDays)||30;
+    return days!==null && days>=0 && days<=windowDays;
+  }
+  function duePromoReminders(){
+    return activeAccounts().filter(promoReminderIsDue).sort((a,b)=>(E.daysUntil(a.promoExpires)||9999)-(E.daysUntil(b.promoExpires)||9999));
+  }
+  function promoReminderMessage(account){
+    const days=E.daysUntil?E.daysUntil(account.promoExpires):null;
+    const when=days===0?"today":days===1?"tomorrow":`in ${days} days`;
+    return `Your promotional APR on ${account.name} ends ${when}. If paying this down before the standard APR returns is still your plan, this may deserve attention this week.`;
+  }
+  function horizonItems(limit=4){
+    const items=[];
+    upcomingFutureChanges(365).forEach(change=>items.push({
+      date:change.date,
+      title:change.title||changeTypeLabel(change.type),
+      meta:`${UI.prettySnapshotDate(change.date)} • ${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}`,
+      action:"showFutureChangeDetail",
+      id:change.id,
+      kind:"change"
+    }));
+    activeAccounts().forEach(account=>{
+      if(account.promoEnabled && account.promoReminderEnabled && account.promoExpires){
+        const days=E.daysUntil?E.daysUntil(account.promoExpires):null;
+        if(days!==null && days>=0 && days<=Math.max(Number(account.promoReminderDays)||30,90)){
+          items.push({
+            date:account.promoExpires,
+            title:`${account.name} promo APR ends`,
+            meta:`${days===0?"Today":days+" days"} • standard APR ${Number(account.standardApr||account.apr||0).toFixed(2)}%`,
+            action:"showAccountDetail",
+            id:account.id,
+            kind:"promo"
+          });
+        }
+      }
+    });
+    return items.sort((a,b)=>new Date(a.date||"2999-12-31")-new Date(b.date||"2999-12-31")).slice(0,limit);
+  }
+
   function focusReason(account){
     if(!account)return completedAccounts().length?"All active accounts are complete. Keep the weekly habit alive.":"Add an account so Seasons can choose what deserves attention this week.";
     if(isFoundation(account))return "This foundation supports the season you are in right now.";
@@ -214,14 +262,14 @@
       if(weeks!==null)details.push(`Its promotional APR expires in ${weeks} week${weeks===1?"":"s"}.`);
     }
     const planned=activeFutureChanges().filter(change=>futureChangeDestination(change)==="Current Focus Account" || change.destinationAccountId===account.id);
-    if(planned.length)details.push(`${planned.length} future change${planned.length===1?" is":"s are"} planned to point here.`);
+    if(planned.length)details.push(`${planned.length} item${planned.length===1?" is":"s are"} on the horizon for this account.`);
     details.push(`It aligns with your current season: ${season(data.seasonId).name}.`);
     return details;
   }
 
   function futureChanges(){data.futureChanges=data.futureChanges||[];return data.futureChanges.filter(change=>!change.archived).sort((a,b)=>new Date(a.date||"2999-12-31")-new Date(b.date||"2999-12-31"));}
   function activeFutureChanges(){return futureChanges().filter(change=>change.status!=="complete");}
-  function changeTypeLabel(type){const labels={monthlyIncrease:"Monthly capacity",expenseEnding:"Expense ending",debtPayoff:"Debt payoff",bonus:"Bonus or windfall",incomeIncrease:"Income increase",other:"Upcoming change"};return labels[type]||labels.other;}
+  function changeTypeLabel(type){const labels={monthlyIncrease:"Monthly capacity",expenseEnding:"Expense ending",debtPayoff:"Debt payoff",bonus:"Bonus or windfall",incomeIncrease:"Income increase",other:"Horizon item"};return labels[type]||labels.other;}
   function changeFrequencyLabel(change){return change.frequency==="oneTime"?"One-time":"Monthly";}
   function futureChangeDestination(change){if(change.destinationAccountId){const account=(data.accounts||[]).find(a=>a.id===change.destinationAccountId);if(account)return account.name;}return change.destination||"Decide later";}
   function futureChangeIsDue(change){if(!change.date || change.status==="complete")return false;const due=new Date(change.date+"T23:59:59");return due<=new Date();}
@@ -311,6 +359,8 @@
     const capacity=futureCapacitySummary();
     const upcoming=upcomingFutureChanges(365).slice(0,3);
     const due=dueFutureChanges();
+    const promoReminders=duePromoReminders();
+    const horizon=horizonItems(4);
     const notices=patternNotices(false);
     const primaryNotice=notices[0];
     const seasonObj=season(data.seasonId);
@@ -318,11 +368,12 @@
     const weekLabel=weekRangeLabel(betaMode()?betaReviewDateValue():undefined);
     const rhythmStatus=reviewRhythmStatus();
     const reviewSub=reviewComplete?"This week has been reviewed.":data.review?.status==="inProgress"?"Continue where you left off.":`${data.reviewDay} • ${data.reviewTime}`;
-    const upcomingMarkup=upcoming.length?upcoming.map(change=>`<button class="briefTimelineItem tappable" data-action="showFutureChangeDetail" data-id="${change.id}"><span><b>${UI.escapeHtml(change.title||changeTypeLabel(change.type))}</b><small>${UI.escapeHtml(UI.prettySnapshotDate(change.date))} • ${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</small></span><span class="miniChev">›</span></button>`).join(""):`<button class="briefTimelineItem tappable" data-action="showFutureChangeForm"><span><b>No planned changes yet</b><small>Add a bonus, raise, expense ending, or future redirect.</small></span><span class="miniChev">›</span></button>`;
+    const upcomingMarkup=horizon.length?horizon.map(item=>`<button class="briefTimelineItem tappable" data-action="${item.action}" data-id="${item.id}"><span><b>${UI.escapeHtml(item.title)}</b><small>${UI.escapeHtml(item.meta)}</small></span><span class="miniChev">›</span></button>`).join(""):`<button class="briefTimelineItem tappable" data-action="showFutureChangeForm"><span><b>Nothing new on the horizon</b><small>Add a bonus, raise, expense ending, promo reminder, or future redirect.</small></span><span class="miniChev">›</span></button>`;
     const focusSub=f?focusReason(f):focusReason(null);
     const seasonalCard=seasonalSignal?`<div class="briefSection seasonalNotice tappable" role="button" tabindex="0" data-action="beginSeasonalChange"><div class="briefKicker">We've noticed</div><div class="briefValue">A seasonal change</div><p>${UI.escapeHtml((seasonalSignal.reasons||[])[0]||"Seasons may be asking you to reconsider what deserves attention now.")}</p><span class="briefLink">Reflect first →</span></div>`:"";
     const patternCard=primaryNotice?`<div class="briefSection patternBrief tappable" role="button" tabindex="0" data-screen="review"><div class="briefKicker">Pattern noticed</div><p>${UI.escapeHtml(primaryNotice.message)}</p></div>`:"";
-    const dueCard=due.length?`<div class="briefSection futureDue tappable" role="button" tabindex="0" data-action="showFutureChanges"><div class="briefKicker">Ready to revisit</div><div class="briefValue">${due.length} upcoming change${due.length===1?"":"s"}</div><p>${UI.escapeHtml(due[0].title||changeTypeLabel(due[0].type))} is ready for a decision.</p></div>`:"";
+    const promoCard=promoReminders.length?`<div class="briefSection futureDue tappable" role="button" tabindex="0" data-action="showAccountDetail" data-id="${promoReminders[0].id}"><div class="briefKicker">We've noticed</div><div class="briefValue">Promotional APR ending</div><p>${UI.escapeHtml(promoReminderMessage(promoReminders[0]))}</p></div>`:"";
+    const dueCard=due.length?`<div class="briefSection futureDue tappable" role="button" tabindex="0" data-action="showFutureChanges"><div class="briefKicker">We've noticed</div><div class="briefValue">Something on the horizon arrived</div><p>${UI.escapeHtml(due[0].title||changeTypeLabel(due[0].type))} is ready for a decision.</p></div>`:"";
     screens.command.innerHTML=`
       <div class="thisWeekLogo">${UI.cycle(0,"tiny")}</div>
       <div class="thisWeekReflection">${UI.escapeHtml(commandReflection())}</div>
@@ -331,6 +382,7 @@
       <div class="thisWeekDate">${UI.escapeHtml(weekLabel)}</div>
       <p class="thisWeekLead">${UI.escapeHtml(rhythmStatus)} · What deserves your attention right now.</p>
       ${seasonalCard}
+      ${promoCard}
       ${dueCard}
       <div class="briefSection tappable" role="button" tabindex="0" data-action="showSeasonDetail">
         <div class="briefKicker">Current Season</div>
@@ -343,8 +395,8 @@
         <p>${UI.escapeHtml(focusSub)}</p>
         ${f?`<div class="briefMetric"><span>Current balance</span><strong>${UI.money(f.balance)}</strong></div>${isDebt(f)?`<div class="briefMetric"><span>Estimated monthly interest</span><strong>${UI.money(monthlyInterestEstimate(f))}</strong></div>`:""}<button class="inlineWhy" data-action="showFocusWhy">Why am I seeing this?</button>`:""}
       </div>
-      <div class="briefSection tappable" role="button" tabindex="0" data-action="showFutureChanges">
-        <div class="briefKicker">Upcoming Changes</div>
+      <div class="briefSection">
+        <div class="briefKicker">On the Horizon</div>
         <div class="briefTimeline">${upcomingMarkup}</div>
         ${(capacity.monthly||capacity.oneTime)?`<div class="briefMetric"><span>Planned capacity</span><strong>${capacity.monthly?`+${UI.money(capacity.monthly)}/mo`:""}${capacity.monthly&&capacity.oneTime?" • ":""}${capacity.oneTime?`${UI.money(capacity.oneTime)} one-time`:""}</strong></div>`:""}
       </div>
@@ -692,7 +744,7 @@
       <div class="card reflectionList">${observations.map(o=>`<div class="reflectionRow"><span>${UI.escapeHtml(o.label)}</span><strong class="${o.kind}">${o.value}</strong></div>`).join("")}</div>
       ${patternNotices(true).length?`<div class="card quietMessage"><div class="label">Pattern noticed</div>${patternNotices(true).map(n=>`<p class="sub"><b>${UI.escapeHtml(n.label)}</b>: ${UI.escapeHtml(n.message)}</p>`).join("")}<p class="sub">Seasons notices the pattern. You still choose the next step.</p></div>`:""}
       ${seasonalChangeSignal()?`<div class="card quietMessage tappableCard" data-action="beginSeasonalChange"><div class="label">We've noticed a seasonal change.</div><p class="sub">After this review, Seasons may ask whether your current season still fits.</p><div class="miniChev">›</div></div>`:""}
-      ${dueFutureChanges().length?`<div class="card quietMessage tappableCard" data-action="showFutureChanges"><div class="label">Upcoming change ready</div>${dueFutureChanges().slice(0,2).map(c=>`<p class="sub"><b>${UI.escapeHtml(c.title||changeTypeLabel(c.type))}</b>: ${UI.escapeHtml(redirectLine(c))}</p>`).join("")}<div class="miniChev">›</div></div>`:""}
+      ${dueFutureChanges().length?`<div class="card quietMessage tappableCard" data-action="showFutureChanges"><div class="label">Horizon item ready</div>${dueFutureChanges().slice(0,2).map(c=>`<p class="sub"><b>${UI.escapeHtml(c.title||changeTypeLabel(c.type))}</b>: ${UI.escapeHtml(redirectLine(c))}</p>`).join("")}<div class="miniChev">›</div></div>`:""}
       <button class="btn" data-action="closeWeek">Close Week</button>`;
   }
 
@@ -730,7 +782,7 @@
       <div class="sectionLabel">Foundations</div>
       <div class="accountList">${foundations.length?foundations.map(row).join(""):`<div class="empty">No foundations yet.</div>`}</div>
       ${complete.length?`<div class="sectionLabel completedLabel">Completed</div><div class="accountList">${complete.map(a=>`<div class="accountRow completedRow" data-action="showAccountDetail" data-id="${a.id}"><div class="accountMeta"><div><span class="check miniCheck">✓</span>${UI.escapeHtml(a.name)}</div><div class="sub">Completed ${a.completedAt?UI.prettySnapshotDate(a.completedAt):""}</div></div><div>${UI.money(0)}</div></div>`).join("")}</div>`:""}
-      <button class="btn secondary" data-action="showAddAccount">Add Account</button><button class="btn secondary" data-action="showFutureChanges">Future Changes</button><button class="btn secondary" data-action="exportBalancesExcel">Export Balances to Excel</button>`;
+      <button class="btn secondary" data-action="showAddAccount">Add Account</button><button class="btn secondary" data-action="showFutureChanges">On the Horizon</button><button class="btn secondary" data-action="exportBalancesExcel">Export Balances to Excel</button>`;
   }
 
   function renderAccountDetail(account){
@@ -744,8 +796,8 @@
         <div class="detailRow"><span>Current Balance</span><strong>${UI.money(account.balance)}</strong></div>
         ${isDebt(account)?`<div class="detailRow"><span>APR</span><strong>${Number(account.apr||0).toFixed(2)}%</strong></div><div class="detailRow"><span>Minimum Payment</span><strong>${UI.money(account.min)}</strong></div><div class="detailRow"><span>Statement Day</span><strong>${account.statementDay?UI.escapeHtml(account.statementDay):"—"}</strong></div>`:`<div class="detailRow"><span>Purpose</span><strong>Foundation</strong></div>`}
       </div>
-      ${account.promoEnabled?`<div class="card detailCard"><div class="label">Promotional APR</div><div class="detailRow"><span>Current Promo APR</span><strong>${Number(account.promoApr||0).toFixed(2)}%</strong></div><div class="detailRow"><span>Expires</span><strong>${account.promoExpires?UI.prettyDate(account.promoExpires):"—"}</strong></div><div class="detailRow"><span>Standard APR After</span><strong>${Number(account.standardApr||account.apr||0).toFixed(2)}%</strong></div>${promo?`<div class="helper">${promo}</div>`:""}</div>`:""}
-      <div class="card detailCard"><div class="label">History</div>${history.length?history.slice(0,8).map(entry=>`<div class="detailRow"><span>${UI.prettySnapshotDate(entry.date)}</span><strong>${UI.money(entry.balance)}</strong></div>`).join(""):`<div class="sub">Balance history will appear after Weekly Reviews.</div>`}</div>
+      ${account.promoEnabled?`<div class="card detailCard"><div class="label">Promotional APR</div><div class="detailRow"><span>Current Promo APR</span><strong>${Number(account.promoApr||0).toFixed(2)}%</strong></div><div class="detailRow"><span>Expires</span><strong>${account.promoExpires?UI.prettyDate(account.promoExpires):"—"}</strong></div><div class="detailRow"><span>Standard APR After</span><strong>${Number(account.standardApr||account.apr||0).toFixed(2)}%</strong></div>${promo?`<div class="helper">${promo}</div>`:""}${account.promoReminderEnabled?`<div class="detailRow"><span>Reminder timing</span><strong>${promoReminderTimingLabel(account.promoReminderDays)}</strong></div>`:""}</div>`:""}
+      <div class="card detailCard"><div class="label">Balance History</div>${history.length?history.slice(0,8).map(entry=>`<div class="detailRow"><span>${UI.prettySnapshotDate(entry.date)}</span><strong>${UI.money(entry.balance)}</strong></div>`).join(""):`<div class="sub">Balance history will appear after Weekly Reviews.</div>`}</div>
       <div class="card quietMessage"><div class="label">Balance Pattern</div><div class="value smallValue">${trendForAccount(account,false).status==="attention"?"Needs Attention":trendForAccount(account,false).status==="good"?"On Track":"Watching"}</div><p class="sub">${UI.escapeHtml(trendForAccount(account,false).message)}</p></div>
       ${account.note?`<div class="card"><div class="label">Notes</div><div class="sub">${UI.escapeHtml(account.note)}</div></div>`:""}`;
     show("accounts");
@@ -789,7 +841,7 @@
           <label class="label" for="formStatementDay">Statement Day</label><input id="formStatementDay" inputmode="numeric" value="${UI.escapeHtml(account?.statementDay||"")}" placeholder="e.g., 15th">
         </div>
       </div>
-      <div id="promoCard" class="card promoCard ${kind==="foundation"?"hidden":""}"><label class="toggleRow"><span><span class="label">Promotional APR</span><span class="sub">Track intro rates and expiration dates.</span></span><input id="formPromo" type="checkbox" ${promoOn?"checked":""}></label><div id="promoFields" class="${promoOn?"":"hidden"}"><label class="label" for="formPromoApr">Current Promo APR</label><input id="formPromoApr" type="number" inputmode="decimal" value="${Number(account?.promoApr)||0}"><label class="label" for="formPromoExpires">Expires</label><input id="formPromoExpires" type="date" value="${UI.escapeHtml(account?.promoExpires||"")}"><label class="label" for="formStandardApr">Standard APR After</label><input id="formStandardApr" type="number" inputmode="decimal" value="${Number(account?.standardApr||account?.apr)||0}"><div class="helper" id="promoReviews">${account?.promoExpires?`${E.weeklyReviewsUntil(account.promoExpires)} week${E.weeklyReviewsUntil(account.promoExpires)===1?"":"s"} remaining`:"Add an expiration date to see weeks remaining."}</div></div></div>
+      <div id="promoCard" class="card promoCard ${kind==="foundation"?"hidden":""}"><label class="toggleRow"><span><span class="label">Promotional APR</span><span class="sub">Track intro rates, expiration dates, and quiet reminders.</span></span><input id="formPromo" type="checkbox" ${promoOn?"checked":""}></label><div id="promoFields" class="${promoOn?"":"hidden"}"><label class="label" for="formPromoApr">Current Promo APR</label><input id="formPromoApr" type="number" inputmode="decimal" value="${Number(account?.promoApr)||0}"><label class="label" for="formPromoExpires">Expires</label><input id="formPromoExpires" type="date" value="${UI.escapeHtml(account?.promoExpires||"")}"><label class="label" for="formStandardApr">Standard APR After</label><input id="formStandardApr" type="number" inputmode="decimal" value="${Number(account?.standardApr||account?.apr)||0}"><label class="toggleRow promoReminderRow"><span><span class="label">Remind me before this promotion ends</span><span class="sub">This will appear on This Week as something on the horizon.</span></span><input id="formPromoReminder" type="checkbox" ${account?.promoReminderEnabled?"checked":""}></label><div id="promoReminderFields" class="${account?.promoReminderEnabled?"":"hidden"}"><label class="label" for="formPromoReminderDays">Reminder timing</label><select id="formPromoReminderDays"><option value="90" ${Number(account?.promoReminderDays)===90?"selected":""}>90 days before</option><option value="60" ${Number(account?.promoReminderDays)===60?"selected":""}>60 days before</option><option value="30" ${!account?.promoReminderDays||Number(account?.promoReminderDays)===30?"selected":""}>30 days before</option><option value="14" ${Number(account?.promoReminderDays)===14?"selected":""}>14 days before</option><option value="7" ${Number(account?.promoReminderDays)===7?"selected":""}>7 days before</option></select></div><div class="helper" id="promoReviews">${account?.promoExpires?`${E.weeklyReviewsUntil(account.promoExpires)} week${E.weeklyReviewsUntil(account.promoExpires)===1?"":"s"} remaining`:"Add an expiration date to see weeks remaining."}</div></div></div>
       <div class="card"><label class="label" for="formNote">Notes</label><textarea id="formNote" placeholder="Optional">${UI.escapeHtml(account?.note||"")}</textarea></div>
       <div class="formFooter"><button class="btn formSaveBtn" data-action="saveAccount" data-id="${account?.id||""}">${isEdit?"Save Changes":"Save Account"}</button></div>`;
     show("accounts");setTimeout(()=>wirePromoForm(),0);
@@ -801,20 +853,20 @@
     const summary=futureCapacitySummary();
     const row=change=>{const projection=futureChangeFocusProjection(change);return `<div class="accountRow" data-action="showFutureChangeDetail" data-id="${change.id}"><div class="accountMeta"><div>${futureChangeIsDue(change)?'<span class="focusDot"></span>':''}${UI.escapeHtml(change.title||changeTypeLabel(change.type))}</div><div class="sub">${changeTypeLabel(change.type)} • ${change.frequency==="oneTime"?"One-time":"Monthly"} • ${change.date?UI.prettyDate(change.date):"No date"}${projection?`<br>${UI.escapeHtml(projection)}`:""}</div></div><div class="row"><span>${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</span><span class="miniChev">›</span></div></div>`};
     screens.accounts.innerHTML=`
-      <div class="reviewHeader"><button class="back" data-action="backToAccounts">‹</button><div class="reviewTitle">Future Changes</div><button class="smallBtn" data-action="showFutureChangeForm">＋</button></div>
-      <div class="card quietMessage"><div class="label">Planned future capacity</div><div class="value smallValue">${summary.monthly?`+${UI.money(summary.monthly)}/mo`:"No monthly changes yet"}</div><p class="sub">${summary.oneTime?`${UI.money(summary.oneTime)} in one-time changes is also planned. `:""}Use this for things you already anticipate: bonuses, tax refunds, raises, a loan ending, or daycare ending.</p></div>
+      <div class="reviewHeader"><button class="back" data-action="backToAccounts">‹</button><div class="reviewTitle">On the Horizon</div><button class="smallBtn" data-action="showFutureChangeForm">＋</button></div>
+      <div class="card quietMessage"><div class="label">On the Horizon</div><div class="value smallValue">${summary.monthly?`+${UI.money(summary.monthly)}/mo`:"No monthly changes yet"}</div><p class="sub">${summary.oneTime?`${UI.money(summary.oneTime)} in one-time changes is also planned. `:""}Use this for things you already anticipate: bonuses, tax refunds, raises, a loan ending, or daycare ending.</p></div>
       ${dueFutureChanges().length?`<div class="sectionLabel">Ready to Review</div><div class="accountList">${dueFutureChanges().map(row).join("")}</div>`:""}
       <div class="sectionLabel">Upcoming</div>
-      <div class="accountList">${changes.length?changes.map(row).join(""):`<div class="empty">No future changes yet.</div>`}</div>
-      <button class="btn" data-action="showFutureChangeForm">Add Future Change</button>`;
+      <div class="accountList">${changes.length?changes.map(row).join(""):`<div class="empty">Nothing new on the horizon.</div>`}</div>
+      <button class="btn" data-action="showFutureChangeForm">Add to Horizon</button>`;
     show("accounts");
   }
 
   function renderFutureChangeDetail(change){
     screens.accounts.innerHTML=`
-      <div class="reviewHeader"><button class="back" data-action="showFutureChanges">‹</button><div class="reviewTitle">Future Change</div><button class="smallBtn" data-action="editFutureChange" data-id="${change.id}">Edit</button></div>
+      <div class="reviewHeader"><button class="back" data-action="showFutureChanges">‹</button><div class="reviewTitle">On the Horizon</div><button class="smallBtn" data-action="editFutureChange" data-id="${change.id}">Edit</button></div>
       ${futureChangeIsDue(change)?`<div class="pill detailPill">Ready to Review</div>`:""}
-      <div class="card detailCard"><div class="label">${UI.escapeHtml(changeTypeLabel(change.type))}</div><div class="value">${UI.escapeHtml(change.title||"Upcoming change")}</div><p class="sub">${UI.escapeHtml(change.note||"A planned change that may affect what deserves attention.")}</p><div class="detailRow"><span>Date</span><strong>${change.date?UI.prettyDate(change.date):"—"}</strong></div><div class="detailRow"><span>Amount</span><strong>${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</strong></div><div class="detailRow"><span>Planned Direction</span><strong>${UI.escapeHtml(futureChangeDestination(change))}</strong></div></div>
+      <div class="card detailCard"><div class="label">${UI.escapeHtml(changeTypeLabel(change.type))}</div><div class="value">${UI.escapeHtml(change.title||"Upcoming change")}</div><p class="sub">${UI.escapeHtml(change.note||"Something on the horizon that may affect what deserves attention.")}</p><div class="detailRow"><span>Date</span><strong>${change.date?UI.prettyDate(change.date):"—"}</strong></div><div class="detailRow"><span>Amount</span><strong>${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</strong></div><div class="detailRow"><span>Planned Direction</span><strong>${UI.escapeHtml(futureChangeDestination(change))}</strong></div></div>
       <div class="card quietMessage"><div class="label">When this arrives</div><p class="sub">${UI.escapeHtml(redirectLine(change))}</p></div>
       ${futureChangeFocusProjection(change)?`<div class="card quietMessage"><div class="label">Projected effect</div><p class="sub">${UI.escapeHtml(futureChangeFocusProjection(change))}</p></div>`:""}
       ${futureChangeIsDue(change)?`<button class="btn" data-action="completeFutureChange" data-id="${change.id}">Mark Reviewed</button><button class="btn secondary" data-action="snoozeFutureChange" data-id="${change.id}">Remind Me Later</button>`:""}
@@ -826,12 +878,12 @@
     const isEdit=Boolean(change);
     const accounts=activeAccounts();
     screens.accounts.innerHTML=`
-      <div class="reviewHeader"><button class="back" data-action="showFutureChanges">‹</button><div class="reviewTitle">${isEdit?"Edit":"Add"} Future Change</div><span></span></div>
+      <div class="reviewHeader"><button class="back" data-action="showFutureChanges">‹</button><div class="reviewTitle">${isEdit?"Edit":"Add"} Horizon Item</div><span></span></div>
       <div class="card"><div class="label">What is changing?</div><select id="futureType"><option value="monthlyIncrease" ${change?.type==="monthlyIncrease"?"selected":""}>Available amount to pay debt increases</option><option value="expenseEnding" ${change?.type==="expenseEnding"?"selected":""}>An expense ends</option><option value="debtPayoff" ${change?.type==="debtPayoff"?"selected":""}>A debt payment frees up</option><option value="bonus" ${change?.type==="bonus"?"selected":""}>Holiday bonus / windfall</option><option value="incomeIncrease" ${change?.type==="incomeIncrease"?"selected":""}>Income increase</option><option value="other" ${change?.type==="other"?"selected":""}>Something else</option></select></div>
       <div class="card"><label class="label" for="futureTitle">Name</label><input id="futureTitle" value="${UI.escapeHtml(change?.title||"")}" placeholder="e.g., Holiday bonus or Daycare ends"><label class="label" for="futureDate">Expected Date</label><input id="futureDate" type="date" value="${UI.escapeHtml(change?.date||"")}"><label class="label" for="futureAmount">Amount</label><input id="futureAmount" type="number" inputmode="decimal" value="${Number(change?.amount)||0}"><label class="label" for="futureFrequency">How often?</label><select id="futureFrequency"><option value="monthly" ${change?.frequency!=="oneTime"?"selected":""}>Monthly capacity</option><option value="oneTime" ${change?.frequency==="oneTime"?"selected":""}>One-time amount</option></select></div>
       <div class="card"><label class="label" for="futureDestination">Where should this capacity go?</label><select id="futureDestination"><option value="">Decide later</option><option value="focus" ${change?.destination==="Current Focus Account"?"selected":""}>Current Focus Account</option><option value="Emergency Fund" ${change?.destination==="Emergency Fund"?"selected":""}>Emergency Fund</option><option value="Retirement" ${change?.destination==="Retirement"?"selected":""}>Retirement</option>${accounts.map(a=>`<option value="acct:${a.id}" ${change?.destinationAccountId===a.id?"selected":""}>${UI.escapeHtml(a.name)}</option>`).join("")}</select><p class="sub">Seasons will not move money. It will remember what you intended and ask when the change arrives.</p></div>
       <div class="card"><label class="label" for="futureNote">Notes</label><textarea id="futureNote" placeholder="Optional">${UI.escapeHtml(change?.note||"")}</textarea></div>
-      <button class="btn" data-action="saveFutureChange" data-id="${change?.id||""}">${isEdit?"Save Changes":"Save Future Change"}</button>`;
+      <button class="btn" data-action="saveFutureChange" data-id="${change?.id||""}">${isEdit?"Save Changes":"Save Horizon Item"}</button>`;
     show("accounts");
   }
 
@@ -851,10 +903,10 @@
     const reviews=(data.snapshots||[]).length;
     const completed=completedAccounts().length;
     screens.history.innerHTML=`
-      <div class="reviewHeader"><div class="screenTitle">History</div><span></span></div>
-      <div class="card quietMessage"><div class="label">Financial journal</div><div class="value smallValue">Here's what has changed since you started using Seasons.</div><p class="sub">History is not a report card. It is the record of decisions, reviews, and season changes that shaped your financial life.</p></div>
+      <div class="reviewHeader"><div class="screenTitle">Journal</div><span></span></div>
+      <div class="card quietMessage"><div class="label">Financial journal</div><div class="value smallValue">Here's what has become significant over time.</div><p class="sub">The Journal is not an activity log. It records reviews, decisions, season changes, and moments that may still matter years from now.</p></div>
       <div class="historyStats"><div><b>${reviews}</b><span>Reviews</span></div><div><b>${completed}</b><span>Completed</span></div><div><b>${season(data.seasonId).name}</b><span>Current Season</span></div></div>
-      <div class="sectionLabel">Journey</div>
+      <div class="sectionLabel">Journal</div>
       <div class="journeyList">${events.length?events.map(event=>`<div class="journeyItem ${event.kind}"><div class="journeyDate">${UI.escapeHtml(UI.prettySnapshotDate(event.date)||event.date||"")}</div><div><b>${UI.escapeHtml(event.title)}</b><p>${UI.escapeHtml(event.sub||"")}</p></div></div>`).join(""):`<div class="empty">Complete Weekly Reviews to begin building your financial journal.</div>`}</div>`;
   }
 
@@ -862,7 +914,7 @@
     const dev=data.devMode;
     screens.settings.innerHTML=`<div class="screenTitle">Settings</div>
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version||"Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
-      <div class="card"><div class="settingsGroup"><div class="label">Preferences</div><button class="settingRow tappable" data-action="editReviewDay"><span>Weekly Review Day</span><span><span class="muted">${UI.escapeHtml(data.reviewDay)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editReviewTime"><span>Review Time</span><span><span class="muted">${UI.escapeHtml(data.reviewTime)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editStrategy"><span>Focus Strategy</span><span><span class="muted">${UI.strategyLabel(data.strategy)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="showFutureChanges"><span>Future Changes</span><span><span class="muted">${activeFutureChanges().length}</span><span class="miniChev">›</span></span></button></div></div>
+      <div class="card"><div class="settingsGroup"><div class="label">Preferences</div><button class="settingRow tappable" data-action="editReviewDay"><span>Weekly Review Day</span><span><span class="muted">${UI.escapeHtml(data.reviewDay)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editReviewTime"><span>Review Time</span><span><span class="muted">${UI.escapeHtml(data.reviewTime)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editStrategy"><span>Focus Strategy</span><span><span class="muted">${UI.strategyLabel(data.strategy)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="showFutureChanges"><span>On the Horizon</span><span><span class="muted">${activeFutureChanges().length}</span><span class="miniChev">›</span></span></button></div></div>
       <div class="card"><div class="settingsGroup"><div class="label">Testing</div><button class="settingRow tappable" data-action="toggleBetaMode"><span>Beta Mode</span><span><span class="muted">${betaMode()?"On":"Off"}</span><span class="miniChev">›</span></span></button>${betaMode()?`<button class="settingRow tappable" data-action="seedBetaReviews"><span>Seed 4 Test Reviews</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="clearSnapshots"><span>Clear Review History</span><span class="miniChev">›</span></button><div class="sub">Beta Mode lets you enter multiple backdated Weekly Reviews to test pattern recognition.</div>`:""}</div></div>
       <div class="card"><div class="label">Privacy</div><div class="value">Local</div><div class="sub">No bank connections. Your information stays on this device unless you export it.</div></div>
       <div class="card"><button class="settingRow tappable" data-action="tapVersion"><span>Version</span><span><span class="muted">${APP_VERSION} · Build ${APP_BUILD}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="forceUpdateCheck"><span>Check for Update</span><span class="miniChev">›</span></button></div>
@@ -880,6 +932,8 @@
     const reviews=UI.byId("promoReviews");
     const standard=UI.byId("formApr");
     const after=UI.byId("formStandardApr");
+    const reminder=UI.byId("formPromoReminder");
+    const reminderFields=UI.byId("promoReminderFields");
     const syncStandardAfter=()=>{
       if(!standard || !after)return;
       const current=String(after.value||"").trim();
@@ -895,6 +949,7 @@
     if(standard&&after){
       standard.addEventListener("input",()=>{if(checkbox?.checked)syncStandardAfter();});
     }
+    if(reminder&&reminderFields){reminder.addEventListener("change",()=>reminderFields.classList.toggle("hidden",!reminder.checked));}
     if(expires&&reviews){expires.addEventListener("input",()=>{const n=E.weeklyReviewsUntil(expires.value);reviews.textContent=n===null?"Add an expiration date to see weeks remaining.":`${n} week${n===1?"":"s"} remaining`;});}
   }
 
@@ -967,7 +1022,7 @@
       });
     });
     rows.push([]);
-    rows.push(["Future Changes"]);
+    rows.push(["On the Horizon"]);
     rows.push(["Title","Type","Date","Amount","Frequency","Planned Direction","Status","Notes"]);
     futureChanges().forEach(change=>rows.push([change.title||"",changeTypeLabel(change.type),change.date||"",Number(change.amount)||0,changeFrequencyLabel(change),futureChangeDestination(change),change.status||"planned",change.note||""]));
     const html=`<html><head><meta charset="utf-8"></head><body><table>${rows.map(row=>`<tr>${row.map(cell=>`<td>${UI.escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</table></body></html>`;
@@ -1057,7 +1112,7 @@
     completeFutureChange(node){const change=data.futureChanges?.find(c=>c.id===node.dataset.id);if(change){change.status="complete";change.completedAt=new Date().toISOString();saveRender("accounts");renderFutureChanges();}},
     snoozeFutureChange(node){const change=data.futureChanges?.find(c=>c.id===node.dataset.id);if(change){const d=new Date();d.setDate(d.getDate()+30);change.date=d.toISOString().slice(0,10);save();renderFutureChangeDetail(change);}},
     archiveFutureChange(node){const change=data.futureChanges?.find(c=>c.id===node.dataset.id);if(change&&confirm("Archive this future change?")){change.archived=true;save();renderFutureChanges();}},
-    saveAccount(node){const id=node.dataset.id;let account=data.accounts.find(a=>a.id===id);if(!account){account={id:`acct_${Date.now()}`,archived:false,paidOff:false,completedAt:null};data.accounts.push(account);}account.name=UI.byId("formName").value||"Account";account.type=UI.byId("formType").value;account.balance=Number(UI.byId("formBalance").value)||0;const foundation=isFoundation(account);if(foundation){account.apr=0;account.min=0;account.statementDay="";account.promoEnabled=false;account.promoApr=0;account.promoExpires="";account.standardApr=0;}else{account.apr=Number(UI.byId("formApr")?.value)||0;account.min=Number(UI.byId("formMin")?.value)||0;account.statementDay=UI.byId("formStatementDay")?.value||"";account.promoEnabled=Boolean(UI.byId("formPromo")?.checked);account.promoApr=Number(UI.byId("formPromoApr")?.value)||0;account.promoExpires=UI.byId("formPromoExpires")?.value||"";account.standardApr=Number(UI.byId("formStandardApr")?.value)||account.apr;}account.note=UI.byId("formNote").value||"";if(!data.startingAmount)data.startingAmount=E.totalBalance(activeAccounts(data));save();renderAccountDetail(account);},
+    saveAccount(node){const id=node.dataset.id;let account=data.accounts.find(a=>a.id===id);if(!account){account={id:`acct_${Date.now()}`,archived:false,paidOff:false,completedAt:null};data.accounts.push(account);}account.name=UI.byId("formName").value||"Account";account.type=UI.byId("formType").value;account.balance=Number(UI.byId("formBalance").value)||0;const foundation=isFoundation(account);if(foundation){account.apr=0;account.min=0;account.statementDay="";account.promoEnabled=false;account.promoApr=0;account.promoExpires="";account.standardApr=0;account.promoReminderEnabled=false;account.promoReminderDays=30;}else{account.apr=Number(UI.byId("formApr")?.value)||0;account.min=Number(UI.byId("formMin")?.value)||0;account.statementDay=UI.byId("formStatementDay")?.value||"";account.promoEnabled=Boolean(UI.byId("formPromo")?.checked);account.promoApr=Number(UI.byId("formPromoApr")?.value)||0;account.promoExpires=UI.byId("formPromoExpires")?.value||"";account.standardApr=Number(UI.byId("formStandardApr")?.value)||account.apr;account.promoReminderEnabled=account.promoEnabled && Boolean(UI.byId("formPromoReminder")?.checked);account.promoReminderDays=Number(UI.byId("formPromoReminderDays")?.value)||30;}account.note=UI.byId("formNote").value||"";if(!data.startingAmount)data.startingAmount=E.totalBalance(activeAccounts(data));save();renderAccountDetail(account);},
     archiveAccount(node){const account=data.accounts.find(a=>a.id===node.dataset.id);if(account&&confirm("Archive this account?")){account.archived=true;saveRender("accounts");}},
     exportBalancesExcel(){exportBalancesExcel();},
     exportData(){const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="seasons-backup.json";link.click();},
