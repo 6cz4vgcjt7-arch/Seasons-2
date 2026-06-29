@@ -2,9 +2,9 @@
 
 **Seasons is a weekly financial habit app that helps people build lasting financial achievements through intentional observation, reflection, and steady progress.**
 
-This is the **v1.1.8 This Week UX Release** prototype release. It continues the founder-track PWA work and keeps the app local-only.
+This is the **v1.1.9 This Week UX Release** prototype release. It continues the founder-track PWA work and keeps the app local-only.
 
-## What v1.1.8 includes
+## What v1.1.9 includes
 
 - First-launch onboarding: **Discover Your Current Season**
 - Four Financial Seasons: **Establish, Grow, Steward, Preserve**
@@ -29,4 +29,8 @@ During this prototype stage, use demo or approximate data until the privacy and 
 
 ## Version
 
-v1.1.8 · Build 118
+v1.1.9 · Build 119
+
+
+## v1.1.9 Notes
+This release refines This Week with transparent focus reasoning and adds History as a financial journal.

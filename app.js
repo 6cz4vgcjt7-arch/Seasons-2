@@ -1,12 +1,12 @@
 (function(){
-  const APP_VERSION="v1.1.8";
-  const APP_BUILD=118;
+  const APP_VERSION="v1.1.9";
+  const APP_BUILD=119;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
   const UI=window.SeasonsUI;
   const E=window.CCEngine;
-  const screens={command:UI.byId("command"),review:UI.byId("review"),accounts:UI.byId("accounts"),settings:UI.byId("settings"),onboarding:UI.byId("onboarding")};
+  const screens={command:UI.byId("command"),review:UI.byId("review"),accounts:UI.byId("accounts"),history:UI.byId("history"),settings:UI.byId("settings"),onboarding:UI.byId("onboarding")};
 
   const SEASONS={
     establish:{icon:"🌱",name:"Establish",line:"Build your financial foundation.",description:"Plant the seeds for a lifetime of financial confidence."},
@@ -105,6 +105,22 @@
     if(betaMode() && data.review?.reviewDate){return new Date(`${data.review.reviewDate}T12:00:00`).toISOString();}
     return new Date().toISOString();
   }
+  function monthlyInterestEstimate(account){
+    if(!account || !isDebt(account))return 0;
+    const apr=E.effectiveApr?E.effectiveApr(account):Number(account.apr)||0;
+    return (Number(account.balance)||0)*(apr/100)/12;
+  }
+  function payoffMonthsEstimate(account,extra=0){
+    if(!account || !isDebt(account))return null;
+    const balance=Number(account.balance)||0;
+    const payment=(Number(account.min)||0)+Number(extra||0);
+    const apr=E.effectiveApr?E.effectiveApr(account):Number(account.apr)||0;
+    if(balance<=0 || payment<=0)return null;
+    const r=(apr/100)/12;
+    if(r<=0)return Math.ceil(balance/payment);
+    if(payment<=balance*r)return null;
+    return Math.ceil(-Math.log(1-(r*balance/payment))/Math.log(1+r));
+  }
   function focusReason(account){
     if(!account)return completedAccounts().length?"All active accounts are complete. Keep the weekly habit alive.":"Add an account so Seasons can choose what deserves attention this week.";
     if(isFoundation(account))return "This foundation supports the season you are in right now.";
@@ -112,6 +128,27 @@
     if(promo!==null && promo>=0 && promo<=12)return `Promotional APR expires in ${promo} week${promo===1?"":"s"}. This deserves attention before the standard APR returns.`;
     if(data.strategy==="snowball")return "This is your smallest active balance. Completing it can simplify your monthly cash flow.";
     return "Every extra dollar sent here saves more interest than your other active debts.";
+  }
+  function focusReasonDetails(account){
+    if(!account)return ["No active focus account has been selected yet."];
+    if(isFoundation(account)){
+      return ["This is a foundation account, so progress means building rather than paying down.", `It aligns with your current season: ${season(data.seasonId).name}.`];
+    }
+    const details=[];
+    const debts=activeAccounts().filter(isDebt);
+    const apr=E.effectiveApr?E.effectiveApr(account):Number(account.apr)||0;
+    const highestApr=Math.max(...debts.map(a=>E.effectiveApr?E.effectiveApr(a):Number(a.apr)||0),0);
+    const smallestBalance=Math.min(...debts.map(a=>Number(a.balance)||0),Number(account.balance)||0);
+    if(data.strategy==="snowball" && Number(account.balance)<=smallestBalance)details.push("It is your smallest active debt, which can simplify monthly cash flow once completed.");
+    if(data.strategy!=="snowball" && apr>=highestApr)details.push("It has the highest effective APR among your active debts.");
+    if(account.promoEnabled && account.promoExpires){
+      const weeks=E.weeklyReviewsUntil(account.promoExpires);
+      if(weeks!==null)details.push(`Its promotional APR expires in ${weeks} week${weeks===1?"":"s"}.`);
+    }
+    const planned=activeFutureChanges().filter(change=>futureChangeDestination(change)==="Current Focus Account" || change.destinationAccountId===account.id);
+    if(planned.length)details.push(`${planned.length} future change${planned.length===1?" is":"s are"} planned to point here.`);
+    details.push(`It aligns with your current season: ${season(data.seasonId).name}.`);
+    return details;
   }
 
   function futureChanges(){data.futureChanges=data.futureChanges||[];return data.futureChanges.filter(change=>!change.archived).sort((a,b)=>new Date(a.date||"2999-12-31")-new Date(b.date||"2999-12-31"));}
@@ -129,7 +166,7 @@
 
   function render(screen){
     if(!data.setupComplete){renderOnboarding();show("onboarding");return;}
-    renderCommand();renderReview();renderAccounts();renderSettings();show(screen);
+    renderCommand();renderReview();renderAccounts();renderHistory();renderSettings();show(screen);
   }
 
   function renderOnboarding(){
@@ -213,7 +250,7 @@
     const reviewSub=reviewComplete?"This week has been reviewed.":data.review?.status==="inProgress"?"Continue where you left off.":`${data.reviewDay} • ${data.reviewTime}`;
     const upcomingMarkup=upcoming.length?upcoming.map(change=>`<button class="briefTimelineItem tappable" data-action="showFutureChangeDetail" data-id="${change.id}"><span><b>${UI.escapeHtml(change.title||changeTypeLabel(change.type))}</b><small>${UI.escapeHtml(UI.prettySnapshotDate(change.date))} • ${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</small></span><span class="miniChev">›</span></button>`).join(""):`<button class="briefTimelineItem tappable" data-action="showFutureChangeForm"><span><b>No planned changes yet</b><small>Add a bonus, raise, expense ending, or future redirect.</small></span><span class="miniChev">›</span></button>`;
     const focusSub=f?focusReason(f):focusReason(null);
-    const seasonalCard=seasonalSignal?`<div class="briefSection seasonalNotice tappable" role="button" tabindex="0" data-action="beginSeasonalChange"><div class="briefKicker">We've noticed</div><div class="briefValue">A seasonal change</div><p>Seasons may be asking you to reconsider what deserves attention now.</p><span class="briefLink">Reflect first →</span></div>`:"";
+    const seasonalCard=seasonalSignal?`<div class="briefSection seasonalNotice tappable" role="button" tabindex="0" data-action="beginSeasonalChange"><div class="briefKicker">We've noticed</div><div class="briefValue">A seasonal change</div><p>${UI.escapeHtml((seasonalSignal.reasons||[])[0]||"Seasons may be asking you to reconsider what deserves attention now.")}</p><span class="briefLink">Reflect first →</span></div>`:"";
     const patternCard=primaryNotice?`<div class="briefSection patternBrief tappable" role="button" tabindex="0" data-screen="review"><div class="briefKicker">Pattern noticed</div><p>${UI.escapeHtml(primaryNotice.message)}</p></div>`:"";
     const dueCard=due.length?`<div class="briefSection futureDue tappable" role="button" tabindex="0" data-action="showFutureChanges"><div class="briefKicker">Ready to revisit</div><div class="briefValue">${due.length} upcoming change${due.length===1?"":"s"}</div><p>${UI.escapeHtml(due[0].title||changeTypeLabel(due[0].type))} is ready for a decision.</p></div>`:"";
     screens.command.innerHTML=`
@@ -233,7 +270,7 @@
         <div class="briefKicker">Current Focus</div>
         <div class="briefValue">${f?UI.escapeHtml(f.name):completedAccounts().length?"Season Complete":"Add Account"}</div>
         <p>${UI.escapeHtml(focusSub)}</p>
-        ${f?`<div class="briefMetric"><span>Current balance</span><strong>${UI.money(f.balance)}</strong></div>`:""}
+        ${f?`<div class="briefMetric"><span>Current balance</span><strong>${UI.money(f.balance)}</strong></div>${isDebt(f)?`<div class="briefMetric"><span>Estimated monthly interest</span><strong>${UI.money(monthlyInterestEstimate(f))}</strong></div>`:""}<button class="inlineWhy" data-action="showFocusWhy">Why am I seeing this?</button>`:""}
       </div>
       <div class="briefSection tappable" role="button" tabindex="0" data-action="showFutureChanges">
         <div class="briefKicker">Upcoming Changes</div>
@@ -726,6 +763,29 @@
     show("accounts");
   }
 
+  function journeyEvents(){
+    const events=[];
+    (data.snapshots||[]).forEach(snapshot=>{
+      events.push({date:snapshot.date,title:"Weekly Review completed",sub:snapshot.reflection||"Your balances were reviewed.",kind:"review"});
+      (snapshot.patternNotices||[]).forEach(n=>events.push({date:snapshot.date,title:"Pattern noticed",sub:n.message,kind:"pattern"}));
+    });
+    completedAccounts().forEach(account=>events.push({date:account.completedAt,title:`${account.name} completed`,sub:"An account moved into your completed history.",kind:"milestone"}));
+    if(data.seasonSince)events.push({date:data.seasonSince,title:`Entered ${data.seasonName}`,sub:"A financial season began.",kind:"season"});
+    (data.futureChanges||[]).filter(c=>c.status==="complete"&&c.completedAt).forEach(c=>events.push({date:c.completedAt,title:`${c.title||changeTypeLabel(c.type)} completed`,sub:redirectLine(c),kind:"future"}));
+    return events.sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,40);
+  }
+  function renderHistory(){
+    const events=journeyEvents();
+    const reviews=(data.snapshots||[]).length;
+    const completed=completedAccounts().length;
+    screens.history.innerHTML=`
+      <div class="reviewHeader"><div class="screenTitle">History</div><span></span></div>
+      <div class="card quietMessage"><div class="label">Financial journal</div><div class="value smallValue">Here's what has changed since you started using Seasons.</div><p class="sub">History is not a report card. It is the record of decisions, reviews, and season changes that shaped your financial life.</p></div>
+      <div class="historyStats"><div><b>${reviews}</b><span>Reviews</span></div><div><b>${completed}</b><span>Completed</span></div><div><b>${season(data.seasonId).name}</b><span>Current Season</span></div></div>
+      <div class="sectionLabel">Journey</div>
+      <div class="journeyList">${events.length?events.map(event=>`<div class="journeyItem ${event.kind}"><div class="journeyDate">${UI.escapeHtml(UI.prettySnapshotDate(event.date)||event.date||"")}</div><div><b>${UI.escapeHtml(event.title)}</b><p>${UI.escapeHtml(event.sub||"")}</p></div></div>`).join(""):`<div class="empty">Complete Weekly Reviews to begin building your financial journal.</div>`}</div>`;
+  }
+
   function renderSettings(){
     const dev=data.devMode;
     screens.settings.innerHTML=`<div class="screenTitle">Settings</div>
@@ -864,6 +924,7 @@
     showSeasonInfo(node){renderSeasonInfo(node.dataset.season||data.seasonId||"establish");},
     makeCurrentSeason(node){setSeason(node.dataset.season||"establish");save();renderSeasonDetail();},
     showFocusDetail(){const f=focus();if(f)renderAccountDetail(f);else renderAccountForm();},
+    showFocusWhy(){const f=focus();if(!f){renderAccountForm();return;}screens.command.innerHTML=`<div class="reviewHeader"><button class="back" data-action="backToCommand">‹</button><div class="reviewTitle">Why this focus?</div><span></span></div><div class="card seasonDetailHero"><div><div class="label">Current Focus</div><div class="value">${UI.escapeHtml(f.name)}</div><p class="sub">${UI.escapeHtml(focusReason(f))}</p></div></div><div class="card"><div class="label">Why am I seeing this?</div>${focusReasonDetails(f).map(item=>`<p class="sub">• ${UI.escapeHtml(item)}</p>`).join("")}</div>${isDebt(f)?`<div class="card detailCard"><div class="detailRow"><span>Effective APR</span><strong>${Number((E.effectiveApr?E.effectiveApr(f):f.apr)||0).toFixed(2)}%</strong></div><div class="detailRow"><span>Estimated monthly interest</span><strong>${UI.money(monthlyInterestEstimate(f))}</strong></div><div class="detailRow"><span>Payoff at current minimum</span><strong>${payoffMonthsEstimate(f)===null?"—":payoffMonthsEstimate(f)+" mo"}</strong></div><div class="detailRow"><span>With extra $100/month</span><strong>${payoffMonthsEstimate(f,100)===null?"—":payoffMonthsEstimate(f,100)+" mo"}</strong></div></div>`:""}`;show("command");},
     accountTypeChanged(){
       const type=String(UI.byId("formType")?.value||"").toLowerCase();
       const foundation=type.includes("emergency")||type.includes("retirement");

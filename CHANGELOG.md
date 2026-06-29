@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.9 — Reasoned This Week Refinement
+- Added a clearer “Why am I seeing this?” explanation for the Current Focus recommendation.
+- Added estimated monthly interest and simple payoff comparisons for debt focus accounts.
+- Added a History page that reads like a financial journal instead of a statistics report.
+- History now surfaces Weekly Reviews, completed accounts, seasonal entries, completed Future Changes, and pattern notices.
+- Seasonal Change notices now surface the leading reason directly on This Week.
+- Fixed a duplicate Seasonal Change condition in the detection logic.
+- Version bumped to v1.1.9 / Build 119.
+
 ## v1.1.8 — This Week UX Release
 - Renamed the former Command Center navigation label to This Week.
 - Redesigned the home screen as a weekly briefing around what deserves attention this week.
