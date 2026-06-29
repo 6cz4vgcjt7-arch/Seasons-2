@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.3.3";
-  const APP_BUILD=133;
+  const APP_VERSION="v1.3.5";
+  const APP_BUILD=135;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -1039,8 +1039,17 @@
     }catch(error){if(!silent)alert("Could not check for updates right now.");return false;}
   }
   async function clearCaches(){
-    if("serviceWorker" in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(reg=>reg.update().catch(()=>{})));}
-    if("caches" in window){const keys=await caches.keys();await Promise.all(keys.map(key=>caches.delete(key)));}
+    if("caches" in window){
+      const keys=await caches.keys();
+      await Promise.all(keys.map(key=>caches.delete(key)));
+    }
+    if("serviceWorker" in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(async reg=>{
+        try{await reg.update();}catch(error){}
+        try{await reg.unregister();}catch(error){}
+      }));
+    }
   }
   function loadDemoDataset(){
     data.setupComplete=true;data.reviewDay=data.reviewDay||"Thursday";data.reviewTime=data.reviewTime||"7:30 PM";data.strategy=data.strategy||"avalanche";data.seasonId="establish";data.seasonName="Establish";data.seasonSince="June 2026";
@@ -1206,8 +1215,8 @@
     setStrategy(node){data.strategy=node.dataset.value;saveRender("settings");},
     tapVersion(){versionTapCount+=1;if(versionTapCount>=5){data.devMode=true;saveRender("settings");}},
     forceUpdateCheck(){checkForUpdate(false);},
-    async reloadUpdate(){await clearCaches();location.reload();},
-    async clearAppCache(){await clearCaches();alert("Cache cleared. Reloading Seasons.");location.reload();},
+    async reloadUpdate(){await clearCaches();location.replace(location.pathname+"?v="+Date.now());},
+    async clearAppCache(){await clearCaches();alert("Cache cleared. Reloading Seasons.");location.replace(location.pathname+"?v="+Date.now());},
     loadDemoData(){if(confirm("Replace local data with demo data?")){loadDemoDataset();}},
     backToSettings(){renderSettings();show("settings");}
   };

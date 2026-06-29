@@ -1,3 +1,11 @@
+# Changelog
+
+## v1.3.5 — Update Reload Fix
+
+- Fixed version mismatch that caused Seasons to report an available update after reload.
+- Updated service worker cache name and asset cache-busting query strings.
+- Reload Update now clears caches, unregisters the active service worker, and reloads with a cache-busting URL.
+
 # v1.3.4 — Refinement
 
 - Replaced the varied bottom navigation icons with the shared Seasons segmented-circle mark.
