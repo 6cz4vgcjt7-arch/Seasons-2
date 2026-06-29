@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.1.3";
-  const APP_BUILD=113;
+  const APP_VERSION="v1.1.4";
+  const APP_BUILD=114;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -182,6 +182,78 @@
     return `<div class="changeLine neutral">No meaningful change</div>`;
   }
 
+  function balanceSeriesForAccount(account, includeDraft=true){
+    const entries=(data.snapshots||[])
+      .map(snapshot=>{const found=(snapshot.accounts||[]).find(item=>item.id===account.id);return found?{date:snapshot.date,balance:Number(found.balance)||0}:null;})
+      .filter(Boolean)
+      .sort((a,b)=>new Date(a.date)-new Date(b.date));
+    if(includeDraft && data.review?.draft && data.review.draft[account.id]!==undefined){
+      entries.push({date:new Date().toISOString(),balance:Number(data.review.draft[account.id])||0,current:true});
+    }
+    return entries;
+  }
+
+  function trendForAccount(account, includeDraft=true){
+    const series=balanceSeriesForAccount(account,includeDraft);
+    const recent=series.slice(-5);
+    if(recent.length<3)return {status:"insufficient",message:"Balance pattern will appear after a few Weekly Reviews.",offTrackCount:0,intervals:0};
+    const intervals=[];
+    for(let i=1;i<recent.length;i++){
+      const before=recent[i-1].balance;
+      const after=recent[i].balance;
+      const change=after-before;
+      const meaningful=Math.abs(change)>=1;
+      let good=false;
+      let flat=false;
+      if(isDebt(account)){good=meaningful && change<0; flat=!meaningful;}
+      else{good=meaningful && change>0; flat=!meaningful;}
+      intervals.push({change,good,flat,offTrack:!good});
+    }
+    const offTrackCount=intervals.filter(i=>i.offTrack).length;
+    const movingAwayCount=intervals.filter(i=>isDebt(account)?i.change>0:i.change<0).length;
+    const flatCount=intervals.filter(i=>i.flat).length;
+    const last=intervals[intervals.length-1];
+    const status=offTrackCount>=3?"attention":last.good?"good":last.offTrack?"watch":"neutral";
+    let message="";
+    if(status==="attention"){
+      if(isDebt(account)){
+        message=movingAwayCount>=2?`${account.name} has moved away from your payoff goal across several reviews.`:`${account.name} has not meaningfully decreased across several reviews.`;
+      }else if(isRetirement(account)){
+        message=movingAwayCount>=2?`${account.name} has decreased across several reviews.`:`${account.name} has been mostly flat across several reviews.`;
+      }else{
+        message=movingAwayCount>=2?`${account.name} has been used for several reviews. This may mean Establish needs more attention.`:`${account.name} has not grown across several reviews.`;
+      }
+    }else if(status==="watch"){
+      message=isDebt(account)?`${account.name} did not move in the payoff direction this review.`:`${account.name} did not move in the building direction this review.`;
+    }else if(status==="good"){
+      message=isDebt(account)?`${account.name} is moving in the payoff direction.`:`${account.name} is moving in the building direction.`;
+    }else{
+      message="No clear pattern yet.";
+    }
+    return {status,message,offTrackCount,flatCount,movingAwayCount,intervals:intervals.length};
+  }
+
+  function patternNotices(includeDraft=true){
+    const notices=[];
+    reviewAccounts().forEach(account=>{
+      const trend=trendForAccount(account,includeDraft);
+      if(trend.status==="attention"){
+        notices.push({accountId:account.id,label:account.name,message:trend.message,kind:"attention",offTrackCount:trend.offTrackCount});
+      }
+    });
+    const promo=E.soonestPromo(data);
+    if(promo && promo.reviewsRemaining!==null && promo.reviewsRemaining<=8){
+      const account=data.accounts.find(a=>a.id===promo.id)||promo;
+      const trend=trendForAccount(account,includeDraft);
+      if(trend.status!=="good"){
+        notices.push({accountId:promo.id,label:promo.name,message:`${promo.name} promo expires in ${promo.reviewsRemaining} week${promo.reviewsRemaining===1?"":"s"}, and the balance is not falling consistently yet.`,kind:"attention",offTrackCount:trend.offTrackCount||0});
+      }
+    }
+    const unique=[];const seen=new Set();
+    notices.forEach(n=>{const key=n.accountId+":"+n.message;if(!seen.has(key)){seen.add(key);unique.push(n);}});
+    return unique.slice(0,4);
+  }
+
   function weeklyObservations(){
     const accounts=reviewAccounts();
     const draft=data.review?.draft||{};
@@ -189,24 +261,34 @@
     const f=focus();
     if(f && draft[f.id]!==undefined){
       const delta=accountDelta(f,draft[f.id]);
-      observations.push({label:"Focus Account",value:delta>0?`↓ ${UI.money(delta)}`:delta<0?`↑ ${UI.money(Math.abs(delta))}`:"No meaningful change",kind:delta>0?"good":delta<0?"attention":"neutral"});
+      observations.push({label:"Focus Account",value:delta>0?`${isDebt(f)?"↓":"↑"} ${UI.money(delta)}`:delta<0?`${isDebt(f)?"↑":"↓"} ${UI.money(Math.abs(delta))}`:"No meaningful change",kind:delta>0?"good":delta<0?"attention":"neutral"});
     }
-    const previousTotal=E.totalBalance(accounts);
-    const currentTotal=accounts.reduce((sum,a)=>sum+(draft[a.id]!==undefined?Number(draft[a.id])||0:Number(a.balance)||0),0);
-    const totalDelta=previousTotal-currentTotal;
-    observations.push({label:"Total Balances",value:totalDelta>0?`↓ ${UI.money(totalDelta)}`:totalDelta<0?`↑ ${UI.money(Math.abs(totalDelta))}`:"No meaningful change",kind:totalDelta>0?"good":totalDelta<0?"attention":"neutral"});
+    const debtAccounts=accounts.filter(isDebt);
+    const foundationAccounts=accounts.filter(isFoundation);
+    const previousDebt=E.totalBalance(debtAccounts);
+    const currentDebt=debtAccounts.reduce((sum,a)=>sum+(draft[a.id]!==undefined?Number(draft[a.id])||0:Number(a.balance)||0),0);
+    const debtDelta=previousDebt-currentDebt;
+    if(debtAccounts.length)observations.push({label:"Debt Progress",value:debtDelta>0?`↓ ${UI.money(debtDelta)}`:debtDelta<0?`↑ ${UI.money(Math.abs(debtDelta))}`:"No meaningful change",kind:debtDelta>0?"good":debtDelta<0?"attention":"neutral"});
+    const previousFoundations=E.totalBalance(foundationAccounts);
+    const currentFoundations=foundationAccounts.reduce((sum,a)=>sum+(draft[a.id]!==undefined?Number(draft[a.id])||0:Number(a.balance)||0),0);
+    const foundationDelta=currentFoundations-previousFoundations;
+    if(foundationAccounts.length)observations.push({label:"Foundations",value:foundationDelta>0?`↑ ${UI.money(foundationDelta)}`:foundationDelta<0?`↓ ${UI.money(Math.abs(foundationDelta))}`:"No meaningful change",kind:foundationDelta>0?"good":foundationDelta<0?"attention":"neutral"});
+    const notices=patternNotices(true);
+    if(notices.length)observations.push({label:"Pattern Noticed",value:`${notices.length} account${notices.length===1?"":"s"}`,kind:"attention"});
     const promo=E.soonestPromo(data);
     if(promo && promo.reviewsRemaining!==null && promo.reviewsRemaining<=8){
       observations.push({label:"Upcoming",value:`${UI.escapeHtml(promo.name)} promo expires in ${promo.reviewsRemaining} week${promo.reviewsRemaining===1?"":"s"}`,kind:"neutral"});
     }
-    return observations.slice(0,3);
+    return observations.slice(0,4);
   }
 
   function weeklyReflectionSentence(observations){
+    const patternObs=observations.find(o=>o.label==="Pattern Noticed");
     const focusObs=observations.find(o=>o.label==="Focus Account");
     const promoObs=observations.find(o=>o.label==="Upcoming");
+    if(patternObs)return "A pattern is emerging across several reviews. This is a good week to decide whether the plan still fits.";
     if(focusObs?.kind==="good")return "Your Focus account moved in the right direction this week.";
-    if(focusObs?.kind==="attention")return "Your Focus account increased this week. A short note can help explain the pattern later.";
+    if(focusObs?.kind==="attention")return "Your Focus account moved away from your intention this week. A short note can help explain the pattern later.";
     if(promoObs)return "A promotional APR is approaching. Planning ahead gives you more options.";
     return "Your review is complete and your records are current.";
   }
@@ -315,6 +397,7 @@
       <div class="screenTitle">This Week</div>
       <p class="sub reflectionSentence">${UI.escapeHtml(sentence)}</p>
       <div class="card reflectionList">${observations.map(o=>`<div class="reflectionRow"><span>${UI.escapeHtml(o.label)}</span><strong class="${o.kind}">${o.value}</strong></div>`).join("")}</div>
+      ${patternNotices(true).length?`<div class="card quietMessage"><div class="label">Pattern noticed</div>${patternNotices(true).map(n=>`<p class="sub"><b>${UI.escapeHtml(n.label)}</b>: ${UI.escapeHtml(n.message)}</p>`).join("")}<p class="sub">Seasons notices the pattern. You still choose the next step.</p></div>`:""}
       <button class="btn" data-action="closeWeek">Close Week</button>`;
   }
 
@@ -368,6 +451,7 @@
       </div>
       ${account.promoEnabled?`<div class="card detailCard"><div class="label">Promotional APR</div><div class="detailRow"><span>Current Promo APR</span><strong>${Number(account.promoApr||0).toFixed(2)}%</strong></div><div class="detailRow"><span>Expires</span><strong>${account.promoExpires?UI.prettyDate(account.promoExpires):"—"}</strong></div><div class="detailRow"><span>Standard APR After</span><strong>${Number(account.standardApr||account.apr||0).toFixed(2)}%</strong></div>${promo?`<div class="helper">${promo}</div>`:""}</div>`:""}
       <div class="card detailCard"><div class="label">History</div>${history.length?history.slice(0,8).map(entry=>`<div class="detailRow"><span>${UI.prettySnapshotDate(entry.date)}</span><strong>${UI.money(entry.balance)}</strong></div>`).join(""):`<div class="sub">Balance history will appear after Weekly Reviews.</div>`}</div>
+      <div class="card quietMessage"><div class="label">Balance Pattern</div><div class="value smallValue">${trendForAccount(account,false).status==="attention"?"Needs Attention":trendForAccount(account,false).status==="good"?"On Track":"Watching"}</div><p class="sub">${UI.escapeHtml(trendForAccount(account,false).message)}</p></div>
       ${account.note?`<div class="card"><div class="label">Notes</div><div class="sub">${UI.escapeHtml(account.note)}</div></div>`:""}`;
     show("accounts");
   }
@@ -460,9 +544,10 @@
 
   function exportBalancesExcel(){
     const rows=[];
-    rows.push(["Section","Account","Type","Balance","APR","Minimum Payment","Promo APR","Promo Expires","Standard APR After","Paid Off","Archived","Last Updated"]);
+    rows.push(["Section","Account","Type","Current Balance","APR","Minimum Payment","Promo APR","Promo Expires","Standard APR After","Paid Off","Archived","Pattern Status","Pattern Message","Last Updated"]);
     E.allAccounts(data).forEach(account=>{
       const kind=isFoundation(account)?"Foundation":account.paidOff?"Completed Debt":"Active Debt";
+      const trend=trendForAccount(account,false);
       rows.push([
         kind,
         account.name||"Account",
@@ -475,15 +560,36 @@
         isDebt(account)&&account.promoEnabled?(Number(account.standardApr||account.apr)||0):"",
         account.paidOff?"Yes":"No",
         account.archived?"Yes":"No",
+        trend.status||"",
+        trend.message||"",
         new Date().toLocaleString()
       ]);
+    });
+    rows.push([]);
+    rows.push(["Balance History"]);
+    rows.push(["Review Date","Account","Type","Balance","Paid Off","Focus Account","Review Reflection","Pattern Notices","Note"]);
+    (data.snapshots||[]).forEach(snapshot=>{
+      const notices=(snapshot.patternNotices||[]).map(n=>n.message).join(" | ");
+      (snapshot.accounts||[]).forEach(item=>{
+        rows.push([
+          snapshot.date||"",
+          item.name||"Account",
+          item.type||"Account",
+          Number(item.balance)||0,
+          item.paidOff?"Yes":"No",
+          snapshot.focusAccountId===item.id?"Yes":"No",
+          snapshot.reflection||"",
+          notices,
+          snapshot.notes?.[item.id]||""
+        ]);
+      });
     });
     const html=`<html><head><meta charset="utf-8"></head><body><table>${rows.map(row=>`<tr>${row.map(cell=>`<td>${UI.escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</table></body></html>`;
     const blob=new Blob([html],{type:"application/vnd.ms-excel"});
     const link=document.createElement("a");
     link.href=URL.createObjectURL(blob);
     const stamp=new Date().toISOString().slice(0,10);
-    link.download=`seasons-account-balances-${stamp}.xls`;
+    link.download=`seasons-account-balances-and-history-${stamp}.xls`;
     link.click();
     setTimeout(()=>URL.revokeObjectURL(link.href),1000);
   }
@@ -521,7 +627,7 @@
     confirmPaidOff(){const pending=data.review.pendingPaidOff;const account=data.accounts.find(a=>a.id===pending?.accountId);if(account){data.review.draft[account.id]=0;completeAccount(account);}advanceReview();},
     notPaidOffYet(){advanceReview();},
     resumeLastAccount(){data.review.status="inProgress";data.review.index=Math.max(0,(data.review.index||0)-1);saveRender("review");},
-    closeWeek(){const observations=weeklyObservations();const reflection=weeklyReflectionSentence(observations);const accounts=reviewAccounts();accounts.forEach(a=>{if(data.review.draft&&data.review.draft[a.id]!==undefined && !a.paidOff)a.balance=Number(data.review.draft[a.id])||0;});data.review.status="complete";data.review.lastCompleted=new Date().toISOString();const allVisible=E.allAccounts(data).filter(a=>!a.archived);data.snapshots.push({date:data.review.lastCompleted,totalBalance:E.totalBalance(activeAccounts(data)),focusAccountId:focus()?.id||null,reflection,observations,notes:data.review.notes||{},accounts:allVisible.map(a=>({id:a.id,name:a.name,balance:a.balance,paidOff:Boolean(a.paidOff)}))});save();renderWeekClosed();},
+    closeWeek(){const observations=weeklyObservations();const reflection=weeklyReflectionSentence(observations);const notices=patternNotices(true);const accounts=reviewAccounts();accounts.forEach(a=>{if(data.review.draft&&data.review.draft[a.id]!==undefined && !a.paidOff)a.balance=Number(data.review.draft[a.id])||0;});data.review.status="complete";data.review.lastCompleted=new Date().toISOString();const allVisible=E.allAccounts(data).filter(a=>!a.archived);data.snapshots.push({date:data.review.lastCompleted,totalBalance:E.totalBalance(activeAccounts(data)),focusAccountId:focus()?.id||null,reflection,observations,patternNotices:notices,notes:data.review.notes||{},accounts:allVisible.map(a=>({id:a.id,name:a.name,type:a.type||"Account",balance:a.balance,paidOff:Boolean(a.paidOff)}))});save();renderWeekClosed();},
     showAddAccount(){renderAccountForm();},
     showAccountDetail(node){const account=data.accounts.find(a=>a.id===node.dataset.id);if(account)renderAccountDetail(account);},
     manageAccount(node){const account=data.accounts.find(a=>a.id===node.dataset.id);if(account)renderManageAccount(account);},

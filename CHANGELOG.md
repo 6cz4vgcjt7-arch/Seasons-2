@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.4 — Weekly Pattern Recognition
+
+- Adds several-week balance pattern recognition across all active accounts, not just the Focus account.
+- Debt accounts are watched for balances that increase or fail to meaningfully decrease across several reviews.
+- Foundation accounts are watched for balances that decrease or remain mostly flat across several reviews.
+- Weekly Review now shows a gentle “Pattern noticed” card when an account has been off track for several reviews.
+- Account detail pages now include a Balance Pattern status.
+- Excel export now includes current balances, pattern status/message, and historical Weekly Review snapshots.
+- Version bumped to v1.1.4 / Build 114.
+
 ## v1.1.3 — Foundation Export Season Drilldown
 
 - Removed debt-only behavior from Foundation accounts: no APR, minimum payment, statement day, or promotional APR fields are saved for Emergency Fund / Retirement accounts.

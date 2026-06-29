@@ -2,15 +2,19 @@
 
 **Seasons is a weekly financial habit app that helps people build lasting financial achievements through intentional observation, reflection, and steady progress.**
 
-This is the **v1.0 Founder Release** of the web prototype. It is intended for founder testing and product validation before rebuilding the experience natively.
+This is the **v1.1.4 Weekly Pattern Recognition** prototype release. It continues the founder-track PWA work and keeps the app local-only.
 
-## What v1.0 includes
+## What v1.1.4 includes
 
 - First-launch onboarding: **Discover Your Current Season**
 - Four Financial Seasons: **Establish, Grow, Steward, Preserve**
-- Account management with promotional APR tracking
+- Account management with debt accounts and foundation accounts
+- Promotional APR tracking
 - Weekly Review flow
-- Reflection Engine: balance changes, weekly observations, and review summaries
+- Several-week balance pattern recognition across active accounts
+- Gentle off-track notices during Weekly Review
+- Balance Pattern status on account detail pages
+- Excel-compatible export of current balances and review history
 - Completed accounts
 - Version/build display and developer tools
 - Local-only storage in the browser
@@ -23,14 +27,4 @@ During this prototype stage, use demo or approximate data until the privacy and 
 
 ## Version
 
-v1.1.3 · Build 113
-
-
-## v1.1.0 Catch-Up
-
-This release brings the stable v1.0 app forward with the main product decisions we had locked in: Foundations, command-page refinement, season detail, focus-card navigation, and clean GitHub upload workflow.
-
-
-## v1.1.3
-
-Fixes Command card tap handling, including the Current Season card.
+v1.1.4 · Build 114
