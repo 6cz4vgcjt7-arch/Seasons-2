@@ -23,9 +23,14 @@ During this prototype stage, use demo or approximate data until the privacy and 
 
 ## Version
 
-v1.1.0 · Build 110
+v1.1.1 · Build 111
 
 
 ## v1.1.0 Catch-Up
 
 This release brings the stable v1.0 app forward with the main product decisions we had locked in: Foundations, command-page refinement, season detail, focus-card navigation, and clean GitHub upload workflow.
+
+
+## v1.1.1
+
+Fixes Command card tap handling, including the Current Season card.

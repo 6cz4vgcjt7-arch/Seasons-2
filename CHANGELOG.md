@@ -12,3 +12,10 @@
 - Season card opens Current Season detail.
 - Balance changes are interpreted differently for debts and foundations.
 - Privacy language simplified.
+
+
+## v1.1.1 — Command Card Click Fix
+
+- Fixed Season card on Command tab not opening Current Season detail.
+- Strengthened delegated tap handling so nested card content still triggers the card action.
+- Version bumped to v1.1.1 / Build 111.

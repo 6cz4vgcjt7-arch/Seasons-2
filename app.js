@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.1.0";
-  const APP_BUILD=110;
+  const APP_VERSION="v1.1.1";
+  const APP_BUILD=111;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -139,8 +139,8 @@
         <div class="row"><div><div class="value">Weekly Review</div><div class="status">${reviewComplete?"Complete":data.review?.status==="inProgress"?"In Progress":data.review?.status==="allUpdated"?"Ready to Close":"Ready"}</div><div class="sub">${reviewComplete?"Next Thursday":`${data.reviewDay} • ${data.reviewTime}`}</div></div><div class="chev">›</div></div>
         <button class="btn compactBtn" data-action="startReview">${data.review?.status==="inProgress"?"Continue Weekly Review":data.review?.status==="allUpdated"?"Close Week":reviewComplete?"View This Week":"Start Weekly Review"}</button>
       </div>
-      <div class="card commandCard tappableCard" data-action="showSeasonDetail"><div class="row"><div><div class="label">Season</div><div class="value">${season(data.seasonId).icon} ${UI.escapeHtml(data.seasonName)}</div><div class="sub">Since ${UI.escapeHtml(data.seasonSince)} • ${progress}</div>${promoLine}</div><div class="chev">›</div></div></div>
-      <div class="card commandCard tappableCard" data-action="showFocusDetail"><div class="row"><div><div class="label">Focus</div><div class="value">${f?UI.escapeHtml(f.name):completedAccounts().length?"Season Complete":"Add Account"}</div></div><div><div class="value alignRight">${f?UI.money(f.balance):"—"}</div><div class="chev compactChev">›</div></div></div></div>`;
+      <div class="card commandCard tappableCard" role="button" tabindex="0" data-action="showSeasonDetail"><div class="row"><div><div class="label">Season</div><div class="value">${season(data.seasonId).icon} ${UI.escapeHtml(data.seasonName)}</div><div class="sub">Since ${UI.escapeHtml(data.seasonSince)} • ${progress}</div>${promoLine}</div><div class="chev">›</div></div></div>
+      <div class="card commandCard tappableCard" role="button" tabindex="0" data-action="showFocusDetail"><div class="row"><div><div class="label">Focus</div><div class="value">${f?UI.escapeHtml(f.name):completedAccounts().length?"Season Complete":"Add Account"}</div></div><div><div class="value alignRight">${f?UI.money(f.balance):"—"}</div><div class="chev compactChev">›</div></div></div></div>`;
   }
 
   function reviewAccounts(){return E.reviewOrder(data);}
