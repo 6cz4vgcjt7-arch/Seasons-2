@@ -1,4 +1,4 @@
-const CACHE="seasons-v130-20260629";
+const CACHE="seasons-v131-20260629";
 const ASSETS=["./","./index.html","./style.css?v=1.3","./storage.js?v=1.3","./engine.js?v=1.3","./ui.js?v=1.3","./app.js?v=1.3","./manifest.webmanifest","./icon.svg","./version.json"];
 self.addEventListener("install",event=>{self.skipWaiting();event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)));});
 self.addEventListener("activate",event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});

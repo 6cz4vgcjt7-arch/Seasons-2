@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.3";
-  const APP_BUILD=130;
+  const APP_VERSION="v1.3.1";
+  const APP_BUILD=131;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -170,9 +170,7 @@
   function futureChangeFocusProjection(change){
     const f=focus();
     if(!change || !f || !isDebt(f))return "";
-    const pointsToFocus=change.destination==="Current Focus Account" || change.destinationAccountId===f.id;
-    if(!pointsToFocus)return "";
-    const amount=Number(change.amount)||0;
+    const amount=allocationAmountForFocus(change);
     if(amount<=0)return "";
     const currentMonths=payoffMonthsEstimate(f,0);
     if(currentMonths===null)return "";
@@ -186,10 +184,9 @@
     }
     if(projectedMonths===null)return "";
     const weeksSaved=Math.max(0,Math.round((currentMonths-projectedMonths)*4.345));
-    if(weeksSaved<=0)return `${change.frequency==="oneTime"?"Putting":"Redirecting"} this toward ${f.name} could shorten the payoff, but Seasons needs more payment history to estimate the exact timing.`;
+    if(weeksSaved<=0)return `Directing ${change.frequency==="oneTime"?UI.money(amount):`+${UI.money(amount)}/month`} toward ${f.name} could shorten the payoff, but Seasons needs more payment history to estimate the exact timing.`;
     const amountText=change.frequency==="oneTime"?UI.money(amount):`+${UI.money(amount)}/month`;
-    const verb=change.frequency==="oneTime"?`Putting ${amountText}`:`Redirecting ${amountText}`;
-    return `${verb} toward ${f.name} could pay it off about ${weeksSaved} week${weeksSaved===1?"":"s"} sooner.`;
+    return `Directing ${amountText} toward ${f.name} could pay it off about ${weeksSaved} week${weeksSaved===1?"":"s"} sooner.`;
   }
   function promoReminderTimingLabel(days){
     const n=Number(days)||30;
@@ -261,7 +258,7 @@
       const weeks=E.weeklyReviewsUntil(account.promoExpires);
       if(weeks!==null)details.push(`Its promotional APR expires in ${weeks} week${weeks===1?"":"s"}.`);
     }
-    const planned=activeFutureChanges().filter(change=>futureChangeDestination(change)==="Current Focus Account" || change.destinationAccountId===account.id);
+    const planned=activeFutureChanges().filter(change=>allocationAmountForFocus(change)>0);
     if(planned.length)details.push(`${planned.length} item${planned.length===1?" is":"s are"} on the horizon for this account.`);
     details.push(`It aligns with your current season: ${season(data.seasonId).name}.`);
     return details;
@@ -271,7 +268,47 @@
   function activeFutureChanges(){return futureChanges().filter(change=>change.status!=="complete");}
   function changeTypeLabel(type){const labels={monthlyIncrease:"Monthly capacity",expenseEnding:"Expense ending",debtPayoff:"Debt payoff",bonus:"Bonus or windfall",incomeIncrease:"Income increase",other:"Horizon item"};return labels[type]||labels.other;}
   function changeFrequencyLabel(change){return change.frequency==="oneTime"?"One-time":"Monthly";}
-  function futureChangeDestination(change){if(change.destinationAccountId){const account=(data.accounts||[]).find(a=>a.id===change.destinationAccountId);if(account)return account.name;}return change.destination||"Decide later";}
+  function futureChangeAllocations(change){
+    const raw=Array.isArray(change?.allocations)?change.allocations.filter(a=>Number(a.value)>0):[];
+    if(raw.length)return raw;
+    if(change?.destinationAccountId)return [{target:`acct:${change.destinationAccountId}`,mode:"percent",value:100}];
+    if(change?.destination==="Current Focus Account")return [{target:"focus",mode:"percent",value:100}];
+    if(change?.destination&&change.destination!=="Decide later")return [{target:change.destination,mode:"percent",value:100}];
+    return [];
+  }
+  function allocationTargetLabel(target){
+    if(!target)return "Decide later";
+    if(target==="focus")return "Current Focus Account";
+    if(target.startsWith&&target.startsWith("acct:")){const account=(data.accounts||[]).find(a=>a.id===target.slice(5));return account?account.name:"Selected account";}
+    return target;
+  }
+  function futureChangeDestination(change){
+    const allocations=futureChangeAllocations(change);
+    if(!allocations.length)return "Decide later";
+    return allocations.map(a=>{
+      const label=allocationTargetLabel(a.target);
+      const value=Number(a.value)||0;
+      const amount=allocationAmount(change,a);
+      const suffix=a.mode==="amount"?UI.money(amount):`${value}%`;
+      return `${label} (${suffix})`;
+    }).join(", ");
+  }
+  function allocationAmount(change,allocation){
+    const total=Number(change?.amount)||0;
+    const value=Number(allocation?.value)||0;
+    if(value<=0)return 0;
+    if(allocation?.mode==="amount")return Math.min(value,total||value);
+    return total*(value/100);
+  }
+  function allocationAmountForFocus(change){
+    const f=focus();
+    if(!f)return 0;
+    return futureChangeAllocations(change).reduce((sum,a)=>{
+      const target=a.target||"";
+      const pointsToFocus=target==="focus" || target===`acct:${f.id}`;
+      return pointsToFocus?sum+allocationAmount(change,a):sum;
+    },0);
+  }
   function futureChangeIsDue(change){if(!change.date || change.status==="complete")return false;const due=new Date(change.date+"T23:59:59");return due<=new Date();}
   function dueFutureChanges(){return activeFutureChanges().filter(futureChangeIsDue);}
   function upcomingFutureChanges(days=90){const now=new Date();const end=new Date();end.setDate(end.getDate()+days);return activeFutureChanges().filter(change=>{if(!change.date)return false;const d=new Date(change.date+"T12:00:00");return d>=now && d<=end;});}
@@ -375,10 +412,11 @@
     const promoCard=promoReminders.length?`<div class="briefSection futureDue tappable" role="button" tabindex="0" data-action="showAccountDetail" data-id="${promoReminders[0].id}"><div class="briefKicker">We've noticed</div><div class="briefValue">Promotional APR ending</div><p>${UI.escapeHtml(promoReminderMessage(promoReminders[0]))}</p></div>`:"";
     const dueCard=due.length?`<div class="briefSection futureDue tappable" role="button" tabindex="0" data-action="showFutureChanges"><div class="briefKicker">We've noticed</div><div class="briefValue">Something on the horizon arrived</div><p>${UI.escapeHtml(due[0].title||changeTypeLabel(due[0].type))} is ready for a decision.</p></div>`:"";
     screens.command.innerHTML=`
+      <div class="thisWeekPageTitle">This Week</div>
       <div class="thisWeekLogo">${UI.cycle(0,"tiny")}</div>
       <div class="thisWeekReflection">${UI.escapeHtml(commandReflection())}</div>
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version || "Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
-      <div class="thisWeekTitle">This Week</div>
+      <div class="thisWeekTitle">${UI.escapeHtml(data.reviewDay||new Date().toLocaleDateString(undefined,{weekday:"long"}))}</div>
       <div class="thisWeekDate">${UI.escapeHtml(weekLabel)}</div>
       <p class="thisWeekLead">${UI.escapeHtml(rhythmStatus)} · What deserves your attention right now.</p>
       ${seasonalCard}
@@ -866,12 +904,19 @@
     screens.accounts.innerHTML=`
       <div class="reviewHeader"><button class="back" data-action="showFutureChanges">‹</button><div class="reviewTitle">On the Horizon</div><button class="smallBtn" data-action="editFutureChange" data-id="${change.id}">Edit</button></div>
       ${futureChangeIsDue(change)?`<div class="pill detailPill">Ready to Review</div>`:""}
-      <div class="card detailCard"><div class="label">${UI.escapeHtml(changeTypeLabel(change.type))}</div><div class="value">${UI.escapeHtml(change.title||"Upcoming change")}</div><p class="sub">${UI.escapeHtml(change.note||"Something on the horizon that may affect what deserves attention.")}</p><div class="detailRow"><span>Date</span><strong>${change.date?UI.prettyDate(change.date):"—"}</strong></div><div class="detailRow"><span>Amount</span><strong>${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</strong></div><div class="detailRow"><span>Planned Direction</span><strong>${UI.escapeHtml(futureChangeDestination(change))}</strong></div></div>
+      <div class="card detailCard"><div class="label">${UI.escapeHtml(changeTypeLabel(change.type))}</div><div class="value">${UI.escapeHtml(change.title||"Upcoming change")}</div><p class="sub">${UI.escapeHtml(change.note||"Something on the horizon that may affect what deserves attention.")}</p><div class="detailRow"><span>Date</span><strong>${change.date?UI.prettyDate(change.date):"—"}</strong></div><div class="detailRow"><span>Amount</span><strong>${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</strong></div><div class="detailRow"><span>Planned Allocation</span><strong>${UI.escapeHtml(futureChangeDestination(change))}</strong></div></div>
       <div class="card quietMessage"><div class="label">When this arrives</div><p class="sub">${UI.escapeHtml(redirectLine(change))}</p></div>
       ${futureChangeFocusProjection(change)?`<div class="card quietMessage"><div class="label">Projected effect</div><p class="sub">${UI.escapeHtml(futureChangeFocusProjection(change))}</p></div>`:""}
       ${futureChangeIsDue(change)?`<button class="btn" data-action="completeFutureChange" data-id="${change.id}">Mark Reviewed</button><button class="btn secondary" data-action="snoozeFutureChange" data-id="${change.id}">Remind Me Later</button>`:""}
       <button class="btn danger" data-action="archiveFutureChange" data-id="${change.id}">Archive</button>`;
     show("accounts");
+  }
+
+  function futureAllocationRows(change,accounts){
+    const allocations=futureChangeAllocations(change);
+    const rows=[0,1,2].map(i=>allocations[i]||{target:i===0?"focus":"",mode:"percent",value:i===0&&!allocations.length?100:""});
+    const optionMarkup=(selected)=>`<option value="" ${!selected?"selected":""}>Decide later</option><option value="focus" ${selected==="focus"?"selected":""}>Current Focus Account</option><option value="Emergency Fund" ${selected==="Emergency Fund"?"selected":""}>Emergency Fund</option><option value="Retirement" ${selected==="Retirement"?"selected":""}>Retirement</option>${accounts.map(a=>`<option value="acct:${a.id}" ${selected===`acct:${a.id}`?"selected":""}>${UI.escapeHtml(a.name)}</option>`).join("")}`;
+    return `<div class="allocationList">${rows.map((row,i)=>`<div class="allocationRow"><select class="futureAllocTarget" data-index="${i}">${optionMarkup(row.target||"")}</select><input class="futureAllocValue" data-index="${i}" type="number" inputmode="decimal" value="${UI.escapeHtml(row.value||"")}" placeholder="${i===0?"100":""}"><select class="futureAllocMode" data-index="${i}"><option value="percent" ${row.mode!=="amount"?"selected":""}>%</option><option value="amount" ${row.mode==="amount"?"selected":""}>$</option></select></div>`).join("")}</div>`;
   }
 
   function renderFutureChangeForm(change=null){
@@ -881,7 +926,7 @@
       <div class="reviewHeader"><button class="back" data-action="showFutureChanges">‹</button><div class="reviewTitle">${isEdit?"Edit":"Add"} Horizon Item</div><span></span></div>
       <div class="card"><div class="label">What is changing?</div><select id="futureType"><option value="monthlyIncrease" ${change?.type==="monthlyIncrease"?"selected":""}>Available amount to pay debt increases</option><option value="expenseEnding" ${change?.type==="expenseEnding"?"selected":""}>An expense ends</option><option value="debtPayoff" ${change?.type==="debtPayoff"?"selected":""}>A debt payment frees up</option><option value="bonus" ${change?.type==="bonus"?"selected":""}>Holiday bonus / windfall</option><option value="incomeIncrease" ${change?.type==="incomeIncrease"?"selected":""}>Income increase</option><option value="other" ${change?.type==="other"?"selected":""}>Something else</option></select></div>
       <div class="card"><label class="label" for="futureTitle">Name</label><input id="futureTitle" value="${UI.escapeHtml(change?.title||"")}" placeholder="e.g., Holiday bonus or Daycare ends"><label class="label" for="futureDate">Expected Date</label><input id="futureDate" type="date" value="${UI.escapeHtml(change?.date||"")}"><label class="label" for="futureAmount">Amount</label><input id="futureAmount" type="number" inputmode="decimal" value="${Number(change?.amount)||0}"><label class="label" for="futureFrequency">How often?</label><select id="futureFrequency"><option value="monthly" ${change?.frequency!=="oneTime"?"selected":""}>Monthly capacity</option><option value="oneTime" ${change?.frequency==="oneTime"?"selected":""}>One-time amount</option></select></div>
-      <div class="card"><label class="label" for="futureDestination">Where should this capacity go?</label><select id="futureDestination"><option value="">Decide later</option><option value="focus" ${change?.destination==="Current Focus Account"?"selected":""}>Current Focus Account</option><option value="Emergency Fund" ${change?.destination==="Emergency Fund"?"selected":""}>Emergency Fund</option><option value="Retirement" ${change?.destination==="Retirement"?"selected":""}>Retirement</option>${accounts.map(a=>`<option value="acct:${a.id}" ${change?.destinationAccountId===a.id?"selected":""}>${UI.escapeHtml(a.name)}</option>`).join("")}</select><p class="sub">Seasons will not move money. It will remember what you intended and ask when the change arrives.</p></div>
+      <div class="card"><div class="label">Where should this capacity go?</div><p class="sub">Choose one or more directions, then assign either a percentage or a dollar amount.</p>${futureAllocationRows(change,accounts)}<p class="sub">Seasons will not move money. It will remember what you intended and ask when the change arrives.</p></div>
       <div class="card"><label class="label" for="futureNote">Notes</label><textarea id="futureNote" placeholder="Optional">${UI.escapeHtml(change?.note||"")}</textarea></div>
       <button class="btn" data-action="saveFutureChange" data-id="${change?.id||""}">${isEdit?"Save Changes":"Save Horizon Item"}</button>`;
     show("accounts");
@@ -1023,8 +1068,8 @@
     });
     rows.push([]);
     rows.push(["On the Horizon"]);
-    rows.push(["Title","Type","Date","Amount","Frequency","Planned Direction","Status","Notes"]);
-    futureChanges().forEach(change=>rows.push([change.title||"",changeTypeLabel(change.type),change.date||"",Number(change.amount)||0,changeFrequencyLabel(change),futureChangeDestination(change),change.status||"planned",change.note||""]));
+    rows.push(["Title","Type","Date","Amount","Frequency","Planned Allocation","Allocation Details","Status","Notes"]);
+    futureChanges().forEach(change=>rows.push([change.title||"",changeTypeLabel(change.type),change.date||"",Number(change.amount)||0,changeFrequencyLabel(change),futureChangeDestination(change),JSON.stringify(futureChangeAllocations(change)),change.status||"planned",change.note||""]));
     const html=`<html><head><meta charset="utf-8"></head><body><table>${rows.map(row=>`<tr>${row.map(cell=>`<td>${UI.escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</table></body></html>`;
     const blob=new Blob([html],{type:"application/vnd.ms-excel"});
     const link=document.createElement("a");
@@ -1108,7 +1153,7 @@
     showFutureChangeForm(){renderFutureChangeForm();},
     showFutureChangeDetail(node){const change=futureChanges().find(c=>c.id===node.dataset.id);if(change)renderFutureChangeDetail(change);},
     editFutureChange(node){const change=futureChanges().find(c=>c.id===node.dataset.id);if(change)renderFutureChangeForm(change);},
-    saveFutureChange(node){data.futureChanges=data.futureChanges||[];let change=data.futureChanges.find(c=>c.id===node.dataset.id);if(!change){change={id:`fc_${Date.now()}`,status:"planned",archived:false};data.futureChanges.push(change);}const dest=UI.byId("futureDestination")?.value||"";change.type=UI.byId("futureType")?.value||"other";change.title=UI.byId("futureTitle")?.value||changeTypeLabel(change.type);change.date=UI.byId("futureDate")?.value||"";change.amount=Number(UI.byId("futureAmount")?.value)||0;change.frequency=UI.byId("futureFrequency")?.value||"monthly";change.destinationAccountId=dest.startsWith("acct:")?dest.slice(5):"";change.destination=dest==="focus"?"Current Focus Account":dest.startsWith("acct:")?"":dest||"Decide later";change.note=UI.byId("futureNote")?.value||"";change.status="planned";save();renderFutureChangeDetail(change);},
+    saveFutureChange(node){data.futureChanges=data.futureChanges||[];let change=data.futureChanges.find(c=>c.id===node.dataset.id);if(!change){change={id:`fc_${Date.now()}`,status:"planned",archived:false};data.futureChanges.push(change);}change.type=UI.byId("futureType")?.value||"other";change.title=UI.byId("futureTitle")?.value||changeTypeLabel(change.type);change.date=UI.byId("futureDate")?.value||"";change.amount=Number(UI.byId("futureAmount")?.value)||0;change.frequency=UI.byId("futureFrequency")?.value||"monthly";const targets=Array.from(document.querySelectorAll(".futureAllocTarget"));change.allocations=targets.map((el,i)=>({target:el.value,mode:document.querySelectorAll(".futureAllocMode")[i]?.value||"percent",value:Number(document.querySelectorAll(".futureAllocValue")[i]?.value)||0})).filter(a=>a.target&&a.value>0);change.destination="";change.destinationAccountId="";change.note=UI.byId("futureNote")?.value||"";change.status="planned";save();renderFutureChangeDetail(change);},
     completeFutureChange(node){const change=data.futureChanges?.find(c=>c.id===node.dataset.id);if(change){change.status="complete";change.completedAt=new Date().toISOString();saveRender("accounts");renderFutureChanges();}},
     snoozeFutureChange(node){const change=data.futureChanges?.find(c=>c.id===node.dataset.id);if(change){const d=new Date();d.setDate(d.getDate()+30);change.date=d.toISOString().slice(0,10);save();renderFutureChangeDetail(change);}},
     archiveFutureChange(node){const change=data.futureChanges?.find(c=>c.id===node.dataset.id);if(change&&confirm("Archive this future change?")){change.archived=true;save();renderFutureChanges();}},
