@@ -1,3 +1,11 @@
+
+## v1.2.1 — Promo APR and Future Change Projections
+
+- Promotional APR standard-after field now autofills from the account Standard APR.
+- Future Changes directed to the Current Focus Account now estimate payoff timing impact.
+- Future Change detail pages include a projected effect message such as “pay it off about X weeks sooner.”
+- Build 121.
+
 # Changelog
 
 ## v1.2 — Dated This Week

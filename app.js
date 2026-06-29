@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.2";
-  const APP_BUILD=120;
+  const APP_VERSION="v1.2.1";
+  const APP_BUILD=121;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -164,6 +164,30 @@
     if(r<=0)return Math.ceil(balance/payment);
     if(payment<=balance*r)return null;
     return Math.ceil(-Math.log(1-(r*balance/payment))/Math.log(1+r));
+  }
+  function futureChangeFocusProjection(change){
+    const f=focus();
+    if(!change || !f || !isDebt(f))return "";
+    const pointsToFocus=change.destination==="Current Focus Account" || change.destinationAccountId===f.id;
+    if(!pointsToFocus)return "";
+    const amount=Number(change.amount)||0;
+    if(amount<=0)return "";
+    const currentMonths=payoffMonthsEstimate(f,0);
+    if(currentMonths===null)return "";
+    let projectedMonths=null;
+    if(change.frequency==="oneTime"){
+      const projectedBalance=Math.max(0,(Number(f.balance)||0)-amount);
+      projectedMonths=payoffMonthsEstimate({...f,balance:projectedBalance},0);
+      if(projectedBalance===0)projectedMonths=0;
+    }else{
+      projectedMonths=payoffMonthsEstimate(f,amount);
+    }
+    if(projectedMonths===null)return "";
+    const weeksSaved=Math.max(0,Math.round((currentMonths-projectedMonths)*4.345));
+    if(weeksSaved<=0)return `${change.frequency==="oneTime"?"Putting":"Redirecting"} this toward ${f.name} could shorten the payoff, but Seasons needs more payment history to estimate the exact timing.`;
+    const amountText=change.frequency==="oneTime"?UI.money(amount):`+${UI.money(amount)}/month`;
+    const verb=change.frequency==="oneTime"?`Putting ${amountText}`:`Redirecting ${amountText}`;
+    return `${verb} toward ${f.name} could pay it off about ${weeksSaved} week${weeksSaved===1?"":"s"} sooner.`;
   }
   function focusReason(account){
     if(!account)return completedAccounts().length?"All active accounts are complete. Keep the weekly habit alive.":"Add an account so Seasons can choose what deserves attention this week.";
@@ -775,7 +799,7 @@
   function renderFutureChanges(){
     const changes=futureChanges();
     const summary=futureCapacitySummary();
-    const row=change=>`<div class="accountRow" data-action="showFutureChangeDetail" data-id="${change.id}"><div class="accountMeta"><div>${futureChangeIsDue(change)?'<span class="focusDot"></span>':''}${UI.escapeHtml(change.title||changeTypeLabel(change.type))}</div><div class="sub">${changeTypeLabel(change.type)} • ${change.frequency==="oneTime"?"One-time":"Monthly"} • ${change.date?UI.prettyDate(change.date):"No date"}</div></div><div class="row"><span>${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</span><span class="miniChev">›</span></div></div>`;
+    const row=change=>{const projection=futureChangeFocusProjection(change);return `<div class="accountRow" data-action="showFutureChangeDetail" data-id="${change.id}"><div class="accountMeta"><div>${futureChangeIsDue(change)?'<span class="focusDot"></span>':''}${UI.escapeHtml(change.title||changeTypeLabel(change.type))}</div><div class="sub">${changeTypeLabel(change.type)} • ${change.frequency==="oneTime"?"One-time":"Monthly"} • ${change.date?UI.prettyDate(change.date):"No date"}${projection?`<br>${UI.escapeHtml(projection)}`:""}</div></div><div class="row"><span>${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</span><span class="miniChev">›</span></div></div>`};
     screens.accounts.innerHTML=`
       <div class="reviewHeader"><button class="back" data-action="backToAccounts">‹</button><div class="reviewTitle">Future Changes</div><button class="smallBtn" data-action="showFutureChangeForm">＋</button></div>
       <div class="card quietMessage"><div class="label">Planned future capacity</div><div class="value smallValue">${summary.monthly?`+${UI.money(summary.monthly)}/mo`:"No monthly changes yet"}</div><p class="sub">${summary.oneTime?`${UI.money(summary.oneTime)} in one-time changes is also planned. `:""}Use this for things you already anticipate: bonuses, tax refunds, raises, a loan ending, or daycare ending.</p></div>
@@ -792,6 +816,7 @@
       ${futureChangeIsDue(change)?`<div class="pill detailPill">Ready to Review</div>`:""}
       <div class="card detailCard"><div class="label">${UI.escapeHtml(changeTypeLabel(change.type))}</div><div class="value">${UI.escapeHtml(change.title||"Upcoming change")}</div><p class="sub">${UI.escapeHtml(change.note||"A planned change that may affect what deserves attention.")}</p><div class="detailRow"><span>Date</span><strong>${change.date?UI.prettyDate(change.date):"—"}</strong></div><div class="detailRow"><span>Amount</span><strong>${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</strong></div><div class="detailRow"><span>Planned Direction</span><strong>${UI.escapeHtml(futureChangeDestination(change))}</strong></div></div>
       <div class="card quietMessage"><div class="label">When this arrives</div><p class="sub">${UI.escapeHtml(redirectLine(change))}</p></div>
+      ${futureChangeFocusProjection(change)?`<div class="card quietMessage"><div class="label">Projected effect</div><p class="sub">${UI.escapeHtml(futureChangeFocusProjection(change))}</p></div>`:""}
       ${futureChangeIsDue(change)?`<button class="btn" data-action="completeFutureChange" data-id="${change.id}">Mark Reviewed</button><button class="btn secondary" data-action="snoozeFutureChange" data-id="${change.id}">Remind Me Later</button>`:""}
       <button class="btn danger" data-action="archiveFutureChange" data-id="${change.id}">Archive</button>`;
     show("accounts");
@@ -848,7 +873,30 @@
   function renderDayPicker(){const days=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];screens.settings.innerHTML=`<div class="reviewHeader"><button class="back" data-action="backToSettings">‹</button><div class="reviewTitle">Weekly Review Day</div><span></span></div><div class="card accountList">${days.map(day=>`<button class="settingChoice ${data.reviewDay===day?"selected":""}" data-action="setReviewDay" data-value="${day}"><span>${day}</span>${data.reviewDay===day?'<span class="check">✓</span>':''}</button>`).join("")}</div>`;show("settings");}
   function renderStrategyPicker(){const strategies=[{value:"avalanche",label:"Highest Interest First",sub:"Save more by paying interest first."},{value:"snowball",label:"Smallest Balance First",sub:"Build momentum through early wins."}];screens.settings.innerHTML=`<div class="reviewHeader"><button class="back" data-action="backToSettings">‹</button><div class="reviewTitle">Focus Strategy</div><span></span></div><div class="card accountList">${strategies.map(strategy=>`<button class="settingChoice ${data.strategy===strategy.value?"selected":""}" data-action="setStrategy" data-value="${strategy.value}"><span><b>${strategy.label}</b><span class="sub">${strategy.sub}</span></span>${data.strategy===strategy.value?'<span class="check">✓</span>':''}</button>`).join("")}</div>`;show("settings");}
 
-  function wirePromoForm(){const checkbox=UI.byId("formPromo");const fields=UI.byId("promoFields");const expires=UI.byId("formPromoExpires");const reviews=UI.byId("promoReviews");if(checkbox&&fields){checkbox.addEventListener("change",()=>fields.classList.toggle("hidden",!checkbox.checked));}if(expires&&reviews){expires.addEventListener("input",()=>{const n=E.weeklyReviewsUntil(expires.value);reviews.textContent=n===null?"Add an expiration date to see weeks remaining.":`${n} week${n===1?"":"s"} remaining`;});}}
+  function wirePromoForm(){
+    const checkbox=UI.byId("formPromo");
+    const fields=UI.byId("promoFields");
+    const expires=UI.byId("formPromoExpires");
+    const reviews=UI.byId("promoReviews");
+    const standard=UI.byId("formApr");
+    const after=UI.byId("formStandardApr");
+    const syncStandardAfter=()=>{
+      if(!standard || !after)return;
+      const current=String(after.value||"").trim();
+      if(current==="" || Number(current)===0){after.value=standard.value||"";}
+    };
+    if(checkbox&&fields){
+      checkbox.addEventListener("change",()=>{
+        fields.classList.toggle("hidden",!checkbox.checked);
+        if(checkbox.checked)syncStandardAfter();
+      });
+      if(checkbox.checked)syncStandardAfter();
+    }
+    if(standard&&after){
+      standard.addEventListener("input",()=>{if(checkbox?.checked)syncStandardAfter();});
+    }
+    if(expires&&reviews){expires.addEventListener("input",()=>{const n=E.weeklyReviewsUntil(expires.value);reviews.textContent=n===null?"Add an expiration date to see weeks remaining.":`${n} week${n===1?"":"s"} remaining`;});}
+  }
 
   function advanceReview(){const accounts=reviewAccounts();if(data.review.index>=accounts.length-1){data.review.status="allUpdated";}else{data.review.index+=1;data.review.status="inProgress";}data.review.pendingPaidOff=null;data.review.pendingReflection=null;saveRender("review");}
   function completeAccount(account){account.balance=0;account.paidOff=true;account.completedAt=new Date().toISOString();}
