@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.3.1";
-  const APP_BUILD=131;
+  const APP_VERSION="v1.3.2";
+  const APP_BUILD=132;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -264,6 +264,34 @@
     return details;
   }
 
+
+  function focusCommitmentSummary(account){
+    if(!account)return {monthly:0,oneTime:0,lines:[]};
+    const lines=[];
+    let monthly=0;
+    let oneTime=0;
+    if(isDebt(account)){
+      const min=Number(account.min)||0;
+      if(min>0){monthly+=min;lines.push(`Minimum payment: ${UI.money(min)}/mo`);}
+    }
+    activeFutureChanges().forEach(change=>{
+      const amount=allocationAmountForFocus(change);
+      if(amount<=0)return;
+      const label=change.title||changeTypeLabel(change.type);
+      if(change.frequency==="oneTime"){oneTime+=amount;lines.push(`${label}: ${UI.money(amount)} one-time`);}
+      else{monthly+=amount;lines.push(`${label}: +${UI.money(amount)}/mo`);}
+    });
+    return {monthly,oneTime,lines};
+  }
+  function focusCommitmentMarkup(account){
+    if(!account)return "";
+    const summary=focusCommitmentSummary(account);
+    if(!summary.monthly && !summary.oneTime)return `<div class="briefMetric"><span>Committed</span><strong>Not set yet</strong></div>`;
+    const amountText=[summary.monthly?`${UI.money(summary.monthly)}/mo`:"",summary.oneTime?`${UI.money(summary.oneTime)} one-time`:""].filter(Boolean).join(" + ");
+    const lines=summary.lines.slice(0,3).map(line=>`<small>${UI.escapeHtml(line)}</small>`).join("");
+    return `<div class="briefMetric focusCommitment"><span>Committed</span><strong>${amountText}</strong></div>${lines?`<div class="commitmentBreakdown">${lines}</div>`:""}`;
+  }
+
   function futureChanges(){data.futureChanges=data.futureChanges||[];return data.futureChanges.filter(change=>!change.archived).sort((a,b)=>new Date(a.date||"2999-12-31")-new Date(b.date||"2999-12-31"));}
   function activeFutureChanges(){return futureChanges().filter(change=>change.status!=="complete");}
   function changeTypeLabel(type){const labels={monthlyIncrease:"Monthly capacity",expenseEnding:"Expense ending",debtPayoff:"Debt payoff",bonus:"Bonus or windfall",incomeIncrease:"Income increase",other:"Horizon item"};return labels[type]||labels.other;}
@@ -431,7 +459,7 @@
         <div class="briefKicker">Current Focus</div>
         <div class="briefValue">${f?UI.escapeHtml(f.name):completedAccounts().length?"Season Complete":"Add Account"}</div>
         <p>${UI.escapeHtml(focusSub)}</p>
-        ${f?`<div class="briefMetric"><span>Current balance</span><strong>${UI.money(f.balance)}</strong></div>${isDebt(f)?`<div class="briefMetric"><span>Estimated monthly interest</span><strong>${UI.money(monthlyInterestEstimate(f))}</strong></div>`:""}<button class="inlineWhy" data-action="showFocusWhy">Why am I seeing this?</button>`:""}
+        ${f?`${focusCommitmentMarkup(f)}<div class="briefMetric"><span>Current balance</span><strong>${UI.money(f.balance)}</strong></div>${isDebt(f)?`<div class="briefMetric"><span>Estimated monthly interest</span><strong>${UI.money(monthlyInterestEstimate(f))}</strong></div>`:""}<button class="inlineWhy" data-action="showFocusWhy">Why am I seeing this?</button>`:""}
       </div>
       <div class="briefSection">
         <div class="briefKicker">On the Horizon</div>
@@ -724,7 +752,7 @@
     const seg=UI.reviewSegments(index,accounts.length);
     const draft=data.review.draft?.[account.id] ?? account.balance;
     screens.review.innerHTML=`
-      <div class="reviewHeader"><button class="back" data-screen="command">‹</button><div class="reviewTitle">Weekly Review</div><button class="smallBtn" data-action="cancelReview">Close</button></div>
+      <div class="reviewHeader"><button class="back" data-action="reviewBack">‹</button><div class="reviewTitle">Weekly Review</div><button class="smallBtn" data-action="cancelReview">Close</button></div>
       <div class="cycleWrap">${UI.cycle(seg)}</div>
       <div class="reviewCount">Account ${index+1} of ${accounts.length}</div>
       <div class="accountName">${UI.escapeHtml(account.name)}</div>
@@ -1134,6 +1162,15 @@
     startReview(){if(!activeAccounts().length){renderAccountForm();return;}if(data.review.status==="complete"){render("review");return;}if(data.review.status!=="inProgress"&&data.review.status!=="allUpdated"&&data.review.status!=="paidOffPrompt"){data.review={status:"ready",index:0,draft:{},notes:{},lastCompleted:data.review?.lastCompleted||null,nextReview:"Next Thursday",pendingPaidOff:null,pendingReflection:null,reviewDate:betaMode()?betaDefaultReviewDate():null};}saveRender("review");},
     beginNewReview(){const picked=UI.byId("betaReviewDateStart")?.value||betaDefaultReviewDate();data.review={status:"inProgress",index:0,draft:{},notes:{},reviewDate:betaMode()?picked:null,lastCompleted:data.review?.lastCompleted||null,nextReview:"Next Thursday",pendingPaidOff:null,pendingReflection:null};saveRender("review");},
     cancelReview(){saveRender("command");},
+    reviewBack(){
+      if(data.review?.status!=="inProgress"){saveRender("command");return;}
+      const accounts=reviewAccounts();
+      const account=accounts[data.review.index||0];
+      const input=UI.byId("todayBalance");
+      if(account&&input){data.review.draft=data.review.draft||{};data.review.draft[account.id]=Number(input.value)||0;}
+      if((data.review.index||0)>0){data.review.index=Math.max(0,(data.review.index||0)-1);saveRender("review");}
+      else{saveRender("command");}
+    },
     saveAccountReview(){const accounts=reviewAccounts();const account=accounts[data.review.index];const input=UI.byId("todayBalance");if(!account||!input)return;const value=Number(input.value)||0;data.review.draft=data.review.draft||{};data.review.notes=data.review.notes||{};data.review.draft[account.id]=value;if(value===0 && !account.paidOff){data.review.status="paidOffPrompt";data.review.pendingPaidOff={accountId:account.id};saveRender("review");return;}const delta=accountDelta(account,value);if(Math.abs(delta)>=1){data.review.status="reflection";data.review.pendingReflection={accountId:account.id,previous:Number(account.balance)||0,current:value,delta};saveRender("review");return;}advanceReview();},
     backFromPaidOffPrompt(){data.review.status="inProgress";data.review.pendingPaidOff=null;saveRender("review");},
     backFromReflection(){data.review.status="inProgress";data.review.pendingReflection=null;saveRender("review");},

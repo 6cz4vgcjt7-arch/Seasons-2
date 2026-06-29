@@ -1,4 +1,4 @@
-# v1.3.1 — This Week Header and Horizon Allocations
+# v1.3.2 — This Week Header and Horizon Allocations
 
 - Moved the This Week label to a centered top heading.
 - Changed the main This Week heading area to show the selected review day.
@@ -8,13 +8,13 @@
 
 # Changelog
 
-## v1.3.1 — The Attention Release
+## v1.3.2 — The Attention Release
 - Renamed History navigation to Journal.
 - Replaced user-facing Future Changes language with On the Horizon.
 - This Week now treats upcoming planned changes and promo APR reminders as horizon/attention items.
 - Added promo APR reminder checkbox and reminder timing selection.
 - Promo APR reminders surface on This Week with calm “We’ve noticed...” language.
-- Updated build to v1.3.1 / Build 131.
+- Updated build to v1.3.2 / Build 132.
 
 ## v1.2.1 — Promo APR and Future Change Projections
 

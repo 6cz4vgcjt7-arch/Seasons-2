@@ -2,7 +2,7 @@
 
 **Seasons is a weekly financial habit app that helps people build lasting financial achievements through intentional observation, reflection, and steady progress.**
 
-This is the **v1.3.1 The Attention Release** prototype release. It continues the founder-track PWA work and keeps the app local-only.
+This is the **v1.3.2 The Attention Release** prototype release. It continues the founder-track PWA work and keeps the app local-only.
 
 ## What v1.3 includes
 
@@ -38,6 +38,6 @@ v1.3 · Build 130
 - Journal replaces the former History navigation.
 
 
-## v1.3.1
+## v1.3.2
 
 This release refines the This Week header and lets On the Horizon items split future capacity across multiple destinations using percentages or dollar amounts.
