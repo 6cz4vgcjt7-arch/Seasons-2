@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#FAF8F2">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <title>Seasons</title>
+</head>
+<body>
+  <div id="splash" class="splash" aria-hidden="true"><div class="splashMark"></div><div class="splashWord">seasons</div></div>
+  <div class="app">
+    <main>
+      <section id="onboarding" class="screen"></section>
+      <section id="command" class="screen active"></section>
+      <section id="review" class="screen"></section>
+      <section id="accounts" class="screen"></section>
+      <section id="settings" class="screen"></section>
+    </main>
+
+    <nav class="nav" aria-label="Primary navigation">
+      <button class="active" data-screen="command" aria-label="Command"><span class="navIcon navCommand"></span><span>Command</span></button>
+      <button data-screen="review" aria-label="Review"><span class="navIcon navReview"></span><span>Review</span></button>
+      <button data-screen="accounts" aria-label="Accounts"><span class="navIcon navAccounts"></span><span>Accounts</span></button>
+      <button data-screen="settings" aria-label="Settings"><span class="navIcon navSettings"></span><span>Settings</span></button>
+    </nav>
+  </div>
+
+  <script src="storage.js"></script>
+  <script src="engine.js"></script>
+  <script src="ui.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
