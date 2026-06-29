@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.3.6";
-  const APP_BUILD=136;
+  const APP_VERSION="v1.3.7";
+  const APP_BUILD=137;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -121,6 +121,11 @@
     const endText=end.toLocaleDateString(undefined,fmtEnd);
     return `${startText} – ${endText}`;
   }
+  function reviewDayLabel(dateValue){
+    const d=dateValue?new Date(`${dateValue}T12:00:00`):nextReviewDate();
+    if(Number.isNaN(d.getTime()))return new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
+    return d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
+  }
   function nextReviewDate(){
     const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     const target=days.indexOf(data.reviewDay||"Thursday");
@@ -188,6 +193,40 @@
     const amountText=change.frequency==="oneTime"?UI.money(amount):`+${UI.money(amount)}/month`;
     return `Directing ${amountText} toward ${f.name} could pay it off about ${weeksSaved} week${weeksSaved===1?"":"s"} sooner.`;
   }
+  function futureChangeFocusOutcome(change){
+    const f=focus();
+    if(!change || !f)return "";
+    const amount=allocationAmountForFocus(change);
+    if(amount<=0)return "";
+    if(isDebt(f)){
+      const currentMonths=payoffMonthsEstimate(f,0);
+      if(currentMonths===null){
+        return `${change.frequency==="oneTime"?UI.money(amount):`+${UI.money(amount)}/month`} planned for ${f.name}.`;
+      }
+      let projectedMonths=null;
+      if(change.frequency==="oneTime"){
+        const projectedBalance=Math.max(0,(Number(f.balance)||0)-amount);
+        projectedMonths=projectedBalance===0?0:payoffMonthsEstimate({...f,balance:projectedBalance},0);
+      }else{
+        projectedMonths=payoffMonthsEstimate(f,amount);
+      }
+      if(projectedMonths===null){
+        return `${change.frequency==="oneTime"?UI.money(amount):`+${UI.money(amount)}/month`} planned for ${f.name}.`;
+      }
+      const weeksSaved=Math.max(0,Math.round((currentMonths-projectedMonths)*4.345));
+      if(weeksSaved>0)return `Pay off ${f.name} about ${weeksSaved} week${weeksSaved===1?"":"s"} sooner.`;
+      return `${change.frequency==="oneTime"?UI.money(amount):`+${UI.money(amount)}/month`} planned for ${f.name}.`;
+    }
+    return `${change.frequency==="oneTime"?UI.money(amount):`+${UI.money(amount)}/month`} planned for ${f.name}.`;
+  }
+  function futureChangeOutcome(change){
+    const focusOutcome=futureChangeFocusOutcome(change);
+    if(focusOutcome)return focusOutcome;
+    const destination=futureChangeDestination(change);
+    if(destination && destination!=="Decide later")return `Planned for ${destination}.`;
+    return "Choose where this capacity should go when it arrives.";
+  }
+
   function promoReminderTimingLabel(days){
     const n=Number(days)||30;
     return `${n} day${n===1?"":"s"} before`;
@@ -212,6 +251,7 @@
       date:change.date,
       title:change.title||changeTypeLabel(change.type),
       meta:`${UI.prettySnapshotDate(change.date)} • ${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}`,
+      outcome:futureChangeOutcome(change),
       action:"showFutureChangeDetail",
       id:change.id,
       kind:"change"
@@ -224,6 +264,7 @@
             date:account.promoExpires,
             title:`${account.name} promo APR ends`,
             meta:`${days===0?"Today":days+" days"} • standard APR ${Number(account.standardApr||account.apr||0).toFixed(2)}%`,
+            outcome:"Decide whether this balance deserves extra attention before the standard APR returns.",
             action:"showAccountDetail",
             id:account.id,
             kind:"promo"
@@ -430,29 +471,28 @@
     const primaryNotice=notices[0];
     const seasonObj=season(data.seasonId);
     const reviewStatus=reviewComplete?"Complete":data.review?.status==="inProgress"?"In progress":data.review?.status==="allUpdated"?"Ready to close":"Ready";
-    const weekLabel=weekRangeLabel(betaMode()?betaReviewDateValue():undefined);
+    const dayLabel=reviewDayLabel(betaMode()?betaReviewDateValue():undefined);
     const rhythmStatus=reviewRhythmStatus();
     const reviewSub=reviewComplete?"This week has been reviewed.":data.review?.status==="inProgress"?"Continue where you left off.":`${data.reviewDay} • ${data.reviewTime}`;
-    const upcomingMarkup=horizon.length?horizon.map(item=>`<button class="briefTimelineItem tappable" data-action="${item.action}" data-id="${item.id}"><span><b>${UI.escapeHtml(item.title)}</b><small>${UI.escapeHtml(item.meta)}</small></span><span class="miniChev">›</span></button>`).join(""):`<button class="briefTimelineItem tappable" data-action="showFutureChangeForm"><span><b>Nothing new on the horizon</b><small>Add a bonus, raise, expense ending, promo reminder, or future redirect.</small></span><span class="miniChev">›</span></button>`;
+    const upcomingMarkup=horizon.length?horizon.map(item=>`<button class="briefTimelineItem tappable" data-action="${item.action}" data-id="${item.id}"><span><b>${UI.escapeHtml(item.title)}</b><small>${UI.escapeHtml(item.meta)}</small>${item.outcome?`<small class="horizonOutcome"><span>Outcome</span>${UI.escapeHtml(item.outcome)}</small>`:""}</span><span class="miniChev">›</span></button>`).join(""):`<button class="briefTimelineItem tappable" data-action="showFutureChangeForm"><span><b>Nothing new on the horizon</b><small>Add a bonus, raise, expense ending, promo reminder, or future redirect.</small></span><span class="miniChev">›</span></button>`;
     const focusSub=f?focusReason(f):focusReason(null);
     const seasonalCard=seasonalSignal?`<div class="briefSection seasonalNotice tappable" role="button" tabindex="0" data-action="beginSeasonalChange"><div class="briefKicker">We've noticed</div><div class="briefValue">A seasonal change</div><p>${UI.escapeHtml((seasonalSignal.reasons||[])[0]||"Seasons may be asking you to reconsider what deserves attention now.")}</p><span class="briefLink">Reflect first →</span></div>`:"";
     const patternCard=primaryNotice?`<div class="briefSection patternBrief tappable" role="button" tabindex="0" data-screen="review"><div class="briefKicker">Pattern noticed</div><p>${UI.escapeHtml(primaryNotice.message)}</p></div>`:"";
     const promoCard=promoReminders.length?`<div class="briefSection futureDue tappable" role="button" tabindex="0" data-action="showAccountDetail" data-id="${promoReminders[0].id}"><div class="briefKicker">We've noticed</div><div class="briefValue">Promotional APR ending</div><p>${UI.escapeHtml(promoReminderMessage(promoReminders[0]))}</p></div>`:"";
     const dueCard=due.length?`<div class="briefSection futureDue tappable" role="button" tabindex="0" data-action="showFutureChanges"><div class="briefKicker">We've noticed</div><div class="briefValue">Something on the horizon arrived</div><p>${UI.escapeHtml(due[0].title||changeTypeLabel(due[0].type))} is ready for a decision.</p></div>`:"";
     screens.command.innerHTML=`
-      <div class="thisWeekPageTitle">This Week</div>
       <div class="thisWeekLogo">${UI.cycle(0,"tiny")}</div>
+      <div class="thisWeekPageTitle">This Week</div>
       <div class="thisWeekReflection">${UI.escapeHtml(commandReflection())}</div>
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version || "Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Update</button></div>`:""}
-      <div class="thisWeekTitle">${UI.escapeHtml(data.reviewDay||new Date().toLocaleDateString(undefined,{weekday:"long"}))}</div>
-      <div class="thisWeekDate">${UI.escapeHtml(weekLabel)}</div>
+      <div class="thisWeekDate">${UI.escapeHtml(dayLabel)}</div>
       <p class="thisWeekLead">${UI.escapeHtml(rhythmStatus)} · What deserves your attention right now.</p>
       ${seasonalCard}
       ${promoCard}
       ${dueCard}
-      <div class="briefSection seasonBrief tappable" role="button" tabindex="0" data-action="showSeasonDetail">
-        <div class="briefValue">${UI.escapeHtml(data.seasonName)}</div>
-        <p>${UI.escapeHtml(progress)}</p>
+      <div class="seasonStatusRow tappable" role="button" tabindex="0" data-action="showSeasonDetail">
+        <span><strong>${UI.escapeHtml(data.seasonName)}</strong> <span class="seasonDash">—</span> <em>${UI.escapeHtml(progress)}</em></span>
+        <span class="miniChev">›</span>
       </div>
       <div class="briefSection tappable" role="button" tabindex="0" data-action="showFocusDetail">
         <div class="briefKicker">Current Focus</div>

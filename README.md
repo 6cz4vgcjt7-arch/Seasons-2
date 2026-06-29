@@ -1,4 +1,4 @@
-# Seasons v1.3.6
+# Seasons v1.3.7
 
 This build refines the This Week layout, bottom navigation, and update-tool wording while keeping local data safe.
 
@@ -6,7 +6,7 @@ This build refines the This Week layout, bottom navigation, and update-tool word
 
 **Seasons is a weekly financial habit app that helps people build lasting financial achievements through intentional observation, reflection, and steady progress.**
 
-This is the **v1.3.6 Refinement** prototype release. It continues the founder-track PWA work and keeps the app local-only.
+This is the **v1.3.7 Refinement** prototype release. It continues the founder-track PWA work and keeps the app local-only.
 
 ## What v1.3 includes
 
@@ -33,7 +33,7 @@ During this prototype stage, use demo or approximate data until the privacy and 
 
 ## Version
 
-v1.3.6 · Build 136
+v1.3.7 · Build 137
 
 
 ## v1.3 additions
@@ -46,7 +46,7 @@ v1.3.6 · Build 136
 
 This release refines the This Week header and lets On the Horizon items split future capacity across multiple destinations using percentages or dollar amounts.
 
-## v1.3.6
+## v1.3.7
 
 - Bottom navigation icons now use the shared segmented-circle mark.
 - Review remains visually emphasized while using the same icon language.

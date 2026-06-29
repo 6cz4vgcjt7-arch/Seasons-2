@@ -1,4 +1,4 @@
-# GitHub Upload Notes — v1.3.6
+# GitHub Upload Notes — v1.3.7
 
 Upload all files from this zip to GitHub Pages. If the app still shows the prior build once, use Settings → Refresh Application, then reopen the site.
 
