@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.3.5";
-  const APP_BUILD=135;
+  const APP_VERSION="v1.3.6";
+  const APP_BUILD=136;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -443,17 +443,16 @@
       <div class="thisWeekPageTitle">This Week</div>
       <div class="thisWeekLogo">${UI.cycle(0,"tiny")}</div>
       <div class="thisWeekReflection">${UI.escapeHtml(commandReflection())}</div>
-      ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version || "Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
+      ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version || "Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Update</button></div>`:""}
       <div class="thisWeekTitle">${UI.escapeHtml(data.reviewDay||new Date().toLocaleDateString(undefined,{weekday:"long"}))}</div>
       <div class="thisWeekDate">${UI.escapeHtml(weekLabel)}</div>
       <p class="thisWeekLead">${UI.escapeHtml(rhythmStatus)} · What deserves your attention right now.</p>
       ${seasonalCard}
       ${promoCard}
       ${dueCard}
-      <div class="briefSection tappable" role="button" tabindex="0" data-action="showSeasonDetail">
-        <div class="briefKicker">Current Season</div>
-        <div class="briefValue">${seasonObj.icon} ${UI.escapeHtml(data.seasonName)}</div>
-        <p>${UI.escapeHtml(seasonObj.line)} Since ${UI.escapeHtml(data.seasonSince)}. ${UI.escapeHtml(progress)}</p>
+      <div class="briefSection seasonBrief tappable" role="button" tabindex="0" data-action="showSeasonDetail">
+        <div class="briefValue">${UI.escapeHtml(data.seasonName)}</div>
+        <p>${UI.escapeHtml(progress)}</p>
       </div>
       <div class="briefSection tappable" role="button" tabindex="0" data-action="showFocusDetail">
         <div class="briefKicker">Current Focus</div>
@@ -986,12 +985,12 @@
   function renderSettings(){
     const dev=data.devMode;
     screens.settings.innerHTML=`<div class="screenTitle">Settings</div>
-      ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version||"Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
+      ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version||"Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Update</button></div>`:""}
       <div class="card"><div class="settingsGroup"><div class="label">Preferences</div><button class="settingRow tappable" data-action="editReviewDay"><span>Weekly Review Day</span><span><span class="muted">${UI.escapeHtml(data.reviewDay)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editReviewTime"><span>Review Time</span><span><span class="muted">${UI.escapeHtml(data.reviewTime)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editStrategy"><span>Focus Strategy</span><span><span class="muted">${UI.strategyLabel(data.strategy)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="showFutureChanges"><span>On the Horizon</span><span><span class="muted">${activeFutureChanges().length}</span><span class="miniChev">›</span></span></button></div></div>
       <div class="card"><div class="settingsGroup"><div class="label">Testing</div><button class="settingRow tappable" data-action="toggleBetaMode"><span>Beta Mode</span><span><span class="muted">${betaMode()?"On":"Off"}</span><span class="miniChev">›</span></span></button>${betaMode()?`<button class="settingRow tappable" data-action="seedBetaReviews"><span>Seed 4 Test Reviews</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="clearSnapshots"><span>Clear Review History</span><span class="miniChev">›</span></button><div class="sub">Beta Mode lets you enter multiple backdated Weekly Reviews to test pattern recognition.</div>`:""}</div></div>
       <div class="card"><div class="label">Privacy</div><div class="value">Local</div><div class="sub">No bank connections. Your information stays on this device unless you export it.</div></div>
       <div class="card"><button class="settingRow tappable" data-action="tapVersion"><span>Version</span><span><span class="muted">${APP_VERSION} · Build ${APP_BUILD}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="forceUpdateCheck"><span>Check for Update</span><span class="miniChev">›</span></button></div>
-      ${dev?`<div class="card"><div class="label">Developer</div><button class="settingRow tappable" data-action="loadDemoData"><span>Load Demo Data</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="clearAppCache"><span>Clear App Cache</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="resetAll"><span class="dangerText">Reset Local Data</span><span class="miniChev">›</span></button></div>`:""}
+      ${dev?`<div class="card"><div class="label">Developer</div><button class="settingRow tappable" data-action="loadDemoData"><span>Load Demo Data</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="clearAppCache"><span>Refresh Application</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="resetAll"><span class="dangerText">Reset Local Data</span><span class="miniChev">›</span></button></div>`:""}
       <button class="btn secondary" data-action="exportBalancesExcel">Export Balances to Excel</button><button class="btn secondary" data-action="exportData">Export Backup</button>${dev?"":`<button class="btn danger" data-action="resetAll">Reset Local Data</button>`}`;
   }
 

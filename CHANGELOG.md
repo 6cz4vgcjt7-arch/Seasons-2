@@ -1,6 +1,15 @@
+# v1.3.6 — Refinement Alignment
+
+- Left-aligned the review day/date context on This Week.
+- Simplified the season card to season name plus status.
+- Made bottom navigation icons visually identical segmented circles.
+- Removed the floating Review button treatment through CSS overrides.
+- Renamed Clear App Cache to Refresh Application.
+- Updated build to v1.3.6 / Build 136.
+
 # Changelog
 
-## v1.3.5 — Update Reload Fix
+## v1.3.6 — Update Reload Fix
 
 - Fixed version mismatch that caused Seasons to report an available update after reload.
 - Updated service worker cache name and asset cache-busting query strings.
