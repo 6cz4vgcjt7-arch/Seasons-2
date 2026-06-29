@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.1.9";
-  const APP_BUILD=119;
+  const APP_VERSION="v1.2";
+  const APP_BUILD=120;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -101,6 +101,50 @@
     if(last){const d=new Date(last);d.setDate(d.getDate()+7);return d.toISOString().slice(0,10);}
     return new Date().toISOString().slice(0,10);
   }
+
+  function weekRangeLabel(dateValue){
+    const base=dateValue?new Date(dateValue):new Date();
+    const d=new Date(base.getFullYear(),base.getMonth(),base.getDate());
+    const day=d.getDay();
+    const mondayOffset=(day+6)%7;
+    const start=new Date(d);
+    start.setDate(d.getDate()-mondayOffset);
+    const end=new Date(start);
+    end.setDate(start.getDate()+6);
+    const sameYear=start.getFullYear()===end.getFullYear();
+    const sameMonth=start.getMonth()===end.getMonth() && sameYear;
+    const fmtStart=sameMonth?{month:"long",day:"numeric"}:sameYear?{month:"long",day:"numeric"}:{month:"long",day:"numeric",year:"numeric"};
+    const fmtEnd=sameYear?{month:sameMonth?undefined:"long",day:"numeric"}:{month:"long",day:"numeric",year:"numeric"};
+    const startText=start.toLocaleDateString(undefined,fmtStart);
+    const endText=end.toLocaleDateString(undefined,fmtEnd);
+    return `${startText} – ${endText}`;
+  }
+  function nextReviewDate(){
+    const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const target=days.indexOf(data.reviewDay||"Thursday");
+    const today=new Date();
+    const d=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    if(target<0)return d;
+    let diff=target-d.getDay();
+    if(diff<0)diff+=7;
+    const next=new Date(d);
+    next.setDate(d.getDate()+diff);
+    return next;
+  }
+  function reviewRhythmStatus(){
+    const status=data.review?.status;
+    if(status==="complete")return betaMode()?"Test review completed":"Weekly Review completed";
+    if(status==="inProgress")return "Weekly Review in progress";
+    if(status==="allUpdated")return "Ready to close this week";
+    const next=nextReviewDate();
+    const today=new Date();
+    const startToday=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    const diff=Math.round((next-startToday)/86400000);
+    if(diff===0)return "Weekly Review ready today";
+    if(diff===1)return "Weekly Review due tomorrow";
+    return `${diff} days until Weekly Review`;
+  }
+
   function reviewTimestamp(){
     if(betaMode() && data.review?.reviewDate){return new Date(`${data.review.reviewDate}T12:00:00`).toISOString();}
     return new Date().toISOString();
@@ -247,6 +291,8 @@
     const primaryNotice=notices[0];
     const seasonObj=season(data.seasonId);
     const reviewStatus=reviewComplete?"Complete":data.review?.status==="inProgress"?"In progress":data.review?.status==="allUpdated"?"Ready to close":"Ready";
+    const weekLabel=weekRangeLabel(betaMode()?betaReviewDateValue():undefined);
+    const rhythmStatus=reviewRhythmStatus();
     const reviewSub=reviewComplete?"This week has been reviewed.":data.review?.status==="inProgress"?"Continue where you left off.":`${data.reviewDay} • ${data.reviewTime}`;
     const upcomingMarkup=upcoming.length?upcoming.map(change=>`<button class="briefTimelineItem tappable" data-action="showFutureChangeDetail" data-id="${change.id}"><span><b>${UI.escapeHtml(change.title||changeTypeLabel(change.type))}</b><small>${UI.escapeHtml(UI.prettySnapshotDate(change.date))} • ${change.frequency==="oneTime"?UI.money(change.amount):`+${UI.money(change.amount)}/mo`}</small></span><span class="miniChev">›</span></button>`).join(""):`<button class="briefTimelineItem tappable" data-action="showFutureChangeForm"><span><b>No planned changes yet</b><small>Add a bonus, raise, expense ending, or future redirect.</small></span><span class="miniChev">›</span></button>`;
     const focusSub=f?focusReason(f):focusReason(null);
@@ -258,7 +304,8 @@
       <div class="thisWeekReflection">${UI.escapeHtml(commandReflection())}</div>
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version || "Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
       <div class="thisWeekTitle">This Week</div>
-      <p class="thisWeekLead">What deserves your attention right now.</p>
+      <div class="thisWeekDate">${UI.escapeHtml(weekLabel)}</div>
+      <p class="thisWeekLead">${UI.escapeHtml(rhythmStatus)} · What deserves your attention right now.</p>
       ${seasonalCard}
       ${dueCard}
       <div class="briefSection tappable" role="button" tabindex="0" data-action="showSeasonDetail">
@@ -281,7 +328,7 @@
       <div class="briefSection reviewBrief tappable" role="button" tabindex="0" data-action="startReview">
         <div class="briefKicker">Weekly Review</div>
         <div class="briefValue">${reviewStatus}</div>
-        <p>${UI.escapeHtml(reviewSub)}</p>
+        <p>${UI.escapeHtml(rhythmStatus)}. ${UI.escapeHtml(reviewSub)}</p>
         <button class="btn compactBtn" data-action="startReview">${data.review?.status==="inProgress"?"Continue Review":data.review?.status==="allUpdated"?"Close Week":reviewComplete?"View This Week":"Begin Review"}</button>
       </div>`;
   }

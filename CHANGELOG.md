@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2 — Dated This Week
+- This Week now displays the current week date range, such as “June 29 – July 5.”
+- Added a weekly rhythm status line, such as “Weekly Review due tomorrow,” “ready today,” or “completed.”
+- Weekly Review card now echoes the current rhythm status so the home screen feels tied to the week.
+- Bumped to v1.2 / Build 120.
+
 ## v1.1.9 — Reasoned This Week Refinement
 - Added a clearer “Why am I seeing this?” explanation for the Current Focus recommendation.
 - Added estimated monthly interest and simple payoff comparisons for debt focus accounts.
