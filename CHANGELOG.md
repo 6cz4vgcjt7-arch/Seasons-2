@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.3 — Foundation Export Season Drilldown
+
+- Removed debt-only behavior from Foundation accounts: no APR, minimum payment, statement day, or promotional APR fields are saved for Emergency Fund / Retirement accounts.
+- Added Excel-compatible account balance export from Settings.
+- Updated Current Season page so the current season card drills into more detailed season guidance.
+- Added detailed pages for Establish, Grow, Steward, and Preserve, including mission, attention areas, and reflection prompt.
+
+
 ## v1.1.0 — Catch-Up Release
 
 - Restores the stable v1.0 baseline.

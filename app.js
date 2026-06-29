@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.1.2";
-  const APP_BUILD=112;
+  const APP_VERSION="v1.1.3";
+  const APP_BUILD=113;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -34,6 +34,15 @@
     if(id==="steward")return "Your growing resources can now support broader priorities.";
     if(id==="preserve")return "This season is about protecting the independence you've worked to build.";
     return "What matters is recognizing what deserves your attention today.";
+  }
+  function seasonInfo(id){
+    const info={
+      establish:{mission:"Build stability.",attention:["Emergency fund", "High-interest debt", "Predictable weekly habits"],reflection:"What can make next month easier?"},
+      grow:{mission:"Increase capacity.",attention:["Retirement contributions", "Investing consistency", "Long-term wealth building"],reflection:"Which investment today benefits future you most?"},
+      steward:{mission:"Manage wisely.",attention:["Family goals", "529 savings", "Intentional use of resources"],reflection:"What has been entrusted to you?"},
+      preserve:{mission:"Protect what you've built.",attention:["Financial independence", "Legacy planning", "Risk reduction"],reflection:"How can today's decisions help tomorrow's family?"}
+    };
+    return info[id]||info.establish;
   }
   function recommendSeason(){
     const answers=data.onboarding?.answers||{};
@@ -204,13 +213,26 @@
 
 
   function renderSeasonDetail(){
-    const current=season(data.seasonId);
+    const id=data.seasonId||"establish";
+    const current=season(id);
     screens.command.innerHTML=`
       <div class="reviewHeader"><button class="back" data-action="backToCommand">‹</button><div class="reviewTitle">Current Season</div><span></span></div>
-      <div class="card seasonDetailHero"><div class="seasonIcon bigSeason">${current.icon}</div><div><div class="value">${UI.escapeHtml(current.name)}</div><div class="sub">${UI.escapeHtml(current.line)}</div><p class="sub">${UI.escapeHtml(current.description)}</p></div></div>
+      <div class="card seasonDetailHero tappableCard" role="button" tabindex="0" data-action="showSeasonInfo" data-season="${id}"><div class="seasonIcon bigSeason">${current.icon}</div><div><div class="label">Current Financial Season</div><div class="value">${UI.escapeHtml(current.name)}</div><div class="sub">${UI.escapeHtml(current.line)}</div><p class="sub">Tap to learn what this season is asking you to notice.</p></div><div class="chev">›</div></div>
       <div class="card quietMessage"><div class="value">Seasons change.</div><p class="sub">The goal isn't to stay in one forever. The goal is to recognize what deserves your attention today.</p></div>
       <div class="sectionLabel">The Four Financial Seasons</div>
-      <div class="accountList">${Object.entries(SEASONS).map(([id,s])=>`<div class="accountRow ${id===data.seasonId?"selectedSeasonRow":""}"><div class="accountMeta"><div>${s.icon} ${UI.escapeHtml(s.name)}</div><div class="sub">${UI.escapeHtml(s.line)}</div></div>${id===data.seasonId?'<span class="check miniCheck">✓</span>':''}</div>`).join("")}</div>`;
+      <div class="accountList">${Object.entries(SEASONS).map(([sid,s])=>`<div class="accountRow ${sid===data.seasonId?"selectedSeasonRow":""}" data-action="showSeasonInfo" data-season="${sid}"><div class="accountMeta"><div>${s.icon} ${UI.escapeHtml(s.name)}</div><div class="sub">${UI.escapeHtml(s.line)}</div></div><div class="row">${sid===data.seasonId?'<span class="check miniCheck">✓</span>':''}<span class="miniChev">›</span></div></div>`).join("")}</div>`;
+    show("command");
+  }
+
+  function renderSeasonInfo(id){
+    const s=season(id);
+    const info=seasonInfo(id);
+    screens.command.innerHTML=`
+      <div class="reviewHeader"><button class="back" data-action="showSeasonDetail">‹</button><div class="reviewTitle">${UI.escapeHtml(s.name)}</div><span></span></div>
+      <div class="card seasonDetailHero"><div class="seasonIcon bigSeason">${s.icon}</div><div><div class="label">Mission</div><div class="value">${UI.escapeHtml(info.mission)}</div><p class="sub">${UI.escapeHtml(s.description)}</p></div></div>
+      <div class="card"><div class="label">What deserves attention</div>${info.attention.map(item=>`<div class="detailRow"><span>${UI.escapeHtml(item)}</span><strong>•</strong></div>`).join("")}</div>
+      <div class="card quietMessage"><div class="label">Reflection</div><div class="value smallValue">${UI.escapeHtml(info.reflection)}</div></div>
+      ${id!==data.seasonId?`<button class="btn secondary" data-action="makeCurrentSeason" data-season="${id}">Make Current Season</button>`:""}`;
     show("command");
   }
 
@@ -330,7 +352,7 @@
       <div class="sectionLabel">Foundations</div>
       <div class="accountList">${foundations.length?foundations.map(row).join(""):`<div class="empty">No foundations yet.</div>`}</div>
       ${complete.length?`<div class="sectionLabel completedLabel">Completed</div><div class="accountList">${complete.map(a=>`<div class="accountRow completedRow" data-action="showAccountDetail" data-id="${a.id}"><div class="accountMeta"><div><span class="check miniCheck">✓</span>${UI.escapeHtml(a.name)}</div><div class="sub">Completed ${a.completedAt?UI.prettySnapshotDate(a.completedAt):""}</div></div><div>${UI.money(0)}</div></div>`).join("")}</div>`:""}
-      <button class="btn secondary" data-action="showAddAccount">Add Account</button>`;
+      <button class="btn secondary" data-action="showAddAccount">Add Account</button><button class="btn secondary" data-action="exportBalancesExcel">Export Balances to Excel</button>`;
   }
 
   function renderAccountDetail(account){
@@ -354,7 +376,7 @@
     screens.accounts.innerHTML=`
       <div class="reviewHeader"><button class="back" data-action="showAccountDetail" data-id="${account.id}">‹</button><div class="reviewTitle">Manage Account</div><span></span></div>
       <div class="card accountList">
-        <button class="settingChoice" data-action="editAccount" data-id="${account.id}"><span><b>Edit Details</b><span class="sub">Update APR, payment, promo, or notes.</span></span><span class="miniChev">›</span></button>
+        <button class="settingChoice" data-action="editAccount" data-id="${account.id}"><span><b>Edit Details</b><span class="sub">${isFoundation(account)?"Update balance, purpose, or notes.":"Update APR, payment, promo, or notes."}</span></span><span class="miniChev">›</span></button>
         ${!account.paidOff?`<button class="settingChoice" data-action="markPaidOff" data-id="${account.id}"><span><b>Mark as Paid Off</b><span class="sub">Move this account to Completed.</span></span><span class="miniChev">›</span></button>`:""}
         <button class="settingChoice" data-action="archiveAccount" data-id="${account.id}"><span><b>Archive</b><span class="sub">Hide this account from normal use.</span></span><span class="miniChev">›</span></button>
       </div>`;
@@ -402,7 +424,7 @@
       <div class="card"><div class="label">Privacy</div><div class="value">Local</div><div class="sub">No bank connections. Your information stays on this device unless you export it.</div></div>
       <div class="card"><button class="settingRow tappable" data-action="tapVersion"><span>Version</span><span><span class="muted">${APP_VERSION} · Build ${APP_BUILD}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="forceUpdateCheck"><span>Check for Update</span><span class="miniChev">›</span></button></div>
       ${dev?`<div class="card"><div class="label">Developer</div><button class="settingRow tappable" data-action="loadDemoData"><span>Load Demo Data</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="clearAppCache"><span>Clear App Cache</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="resetAll"><span class="dangerText">Reset Local Data</span><span class="miniChev">›</span></button></div>`:""}
-      <button class="btn secondary" data-action="exportData">Export Backup</button>${dev?"":`<button class="btn danger" data-action="resetAll">Reset Local Data</button>`}`;
+      <button class="btn secondary" data-action="exportBalancesExcel">Export Balances to Excel</button><button class="btn secondary" data-action="exportData">Export Backup</button>${dev?"":`<button class="btn danger" data-action="resetAll">Reset Local Data</button>`}`;
   }
 
   function renderDayPicker(){const days=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];screens.settings.innerHTML=`<div class="reviewHeader"><button class="back" data-action="backToSettings">‹</button><div class="reviewTitle">Weekly Review Day</div><span></span></div><div class="card accountList">${days.map(day=>`<button class="settingChoice ${data.reviewDay===day?"selected":""}" data-action="setReviewDay" data-value="${day}"><span>${day}</span>${data.reviewDay===day?'<span class="check">✓</span>':''}</button>`).join("")}</div>`;show("settings");}
@@ -436,6 +458,36 @@
     data.startingAmount=20667;data.snapshots=[];data.review={status:"ready",index:0,draft:{},lastCompleted:null,nextReview:"Next Thursday",pendingPaidOff:null,pendingReflection:null,notes:{}};saveRender("command");
   }
 
+  function exportBalancesExcel(){
+    const rows=[];
+    rows.push(["Section","Account","Type","Balance","APR","Minimum Payment","Promo APR","Promo Expires","Standard APR After","Paid Off","Archived","Last Updated"]);
+    E.allAccounts(data).forEach(account=>{
+      const kind=isFoundation(account)?"Foundation":account.paidOff?"Completed Debt":"Active Debt";
+      rows.push([
+        kind,
+        account.name||"Account",
+        account.type||"Account",
+        Number(account.balance)||0,
+        isDebt(account)?(Number(account.apr)||0):"",
+        isDebt(account)?(Number(account.min)||0):"",
+        isDebt(account)&&account.promoEnabled?(Number(account.promoApr)||0):"",
+        isDebt(account)&&account.promoEnabled?(account.promoExpires||""):"",
+        isDebt(account)&&account.promoEnabled?(Number(account.standardApr||account.apr)||0):"",
+        account.paidOff?"Yes":"No",
+        account.archived?"Yes":"No",
+        new Date().toLocaleString()
+      ]);
+    });
+    const html=`<html><head><meta charset="utf-8"></head><body><table>${rows.map(row=>`<tr>${row.map(cell=>`<td>${UI.escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</table></body></html>`;
+    const blob=new Blob([html],{type:"application/vnd.ms-excel"});
+    const link=document.createElement("a");
+    link.href=URL.createObjectURL(blob);
+    const stamp=new Date().toISOString().slice(0,10);
+    link.download=`seasons-account-balances-${stamp}.xls`;
+    link.click();
+    setTimeout(()=>URL.revokeObjectURL(link.href),1000);
+  }
+
   const actions={
     startSeasonReflection(){data.onboarding.step="discover";saveRender("onboarding");},
     recommendCurrentSeason(){data.onboarding.answers={q1:UI.byId("seasonQ1").value,q2:UI.byId("seasonQ2").value,q3:UI.byId("seasonQ3").value};data.onboarding.recommendedSeason=recommendSeason();data.onboarding.step="recommendation";saveRender("onboarding");},
@@ -444,11 +496,16 @@
     selectSeason(node){setSeason(node.dataset.season||"establish");data.onboarding.step="setup";saveRender("onboarding");},
     backToCommand(){render("command");},
     showSeasonDetail(){renderSeasonDetail();},
+    showSeasonInfo(node){renderSeasonInfo(node.dataset.season||data.seasonId||"establish");},
+    makeCurrentSeason(node){setSeason(node.dataset.season||"establish");save();renderSeasonDetail();},
     showFocusDetail(){const f=focus();if(f)renderAccountDetail(f);else renderAccountForm();},
     accountTypeChanged(){
       const type=String(UI.byId("formType")?.value||"").toLowerCase();
       const foundation=type.includes("emergency")||type.includes("retirement");
       UI.byId("debtFields")?.classList.toggle("hidden",foundation);
+      UI.byId("promoCard")?.classList.toggle("hidden",foundation);
+      const nameInput=UI.byId("formName");
+      if(nameInput)nameInput.placeholder=foundation?"e.g., Emergency Fund":"e.g., Chase Freedom";
       const help=UI.byId("accountTypeHelp");
       if(help)help.textContent=foundation?"Foundation accounts track what you are building.":"Debt accounts track what you are paying down.";
     },
@@ -471,8 +528,9 @@
     editAccount(node){const account=data.accounts.find(a=>a.id===node.dataset.id);if(account)renderAccountForm(account);},
     markPaidOff(node){const account=data.accounts.find(a=>a.id===node.dataset.id);if(account){completeAccount(account);save();renderAccountDetail(account);}},
     backToAccounts(){renderAccounts();show("accounts");},
-    saveAccount(node){const id=node.dataset.id;let account=data.accounts.find(a=>a.id===id);if(!account){account={id:`acct_${Date.now()}`,archived:false,paidOff:false,completedAt:null};data.accounts.push(account);}account.name=UI.byId("formName").value||"Account";account.type=UI.byId("formType").value;account.balance=Number(UI.byId("formBalance").value)||0;account.apr=Number(UI.byId("formApr").value)||0;account.min=Number(UI.byId("formMin").value)||0;account.statementDay=UI.byId("formStatementDay")?.value||"";account.note=UI.byId("formNote").value||"";account.promoEnabled=Boolean(UI.byId("formPromo")?.checked);account.promoApr=Number(UI.byId("formPromoApr")?.value)||0;account.promoExpires=UI.byId("formPromoExpires")?.value||"";account.standardApr=Number(UI.byId("formStandardApr")?.value)||account.apr;if(!data.startingAmount)data.startingAmount=E.totalBalance(activeAccounts(data));save();renderAccountDetail(account);},
+    saveAccount(node){const id=node.dataset.id;let account=data.accounts.find(a=>a.id===id);if(!account){account={id:`acct_${Date.now()}`,archived:false,paidOff:false,completedAt:null};data.accounts.push(account);}account.name=UI.byId("formName").value||"Account";account.type=UI.byId("formType").value;account.balance=Number(UI.byId("formBalance").value)||0;const foundation=isFoundation(account);if(foundation){account.apr=0;account.min=0;account.statementDay="";account.promoEnabled=false;account.promoApr=0;account.promoExpires="";account.standardApr=0;}else{account.apr=Number(UI.byId("formApr")?.value)||0;account.min=Number(UI.byId("formMin")?.value)||0;account.statementDay=UI.byId("formStatementDay")?.value||"";account.promoEnabled=Boolean(UI.byId("formPromo")?.checked);account.promoApr=Number(UI.byId("formPromoApr")?.value)||0;account.promoExpires=UI.byId("formPromoExpires")?.value||"";account.standardApr=Number(UI.byId("formStandardApr")?.value)||account.apr;}account.note=UI.byId("formNote").value||"";if(!data.startingAmount)data.startingAmount=E.totalBalance(activeAccounts(data));save();renderAccountDetail(account);},
     archiveAccount(node){const account=data.accounts.find(a=>a.id===node.dataset.id);if(account&&confirm("Archive this account?")){account.archived=true;saveRender("accounts");}},
+    exportBalancesExcel(){exportBalancesExcel();},
     exportData(){const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="seasons-backup.json";link.click();},
     resetAll(){if(confirm("Reset all local Seasons data?")){data=window.CCStorage.reset();location.reload();}},
     editReviewDay(){renderDayPicker();},
