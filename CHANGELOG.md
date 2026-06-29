@@ -1,14 +1,24 @@
 # Changelog
 
+## v1.1.6 — Seasonal Change Reflection
+
+- Adds a conservative Seasonal Change detection engine.
+- Shows “We’ve noticed a seasonal change” only after several Weekly Reviews, with fewer reviews required in Beta Mode for testing.
+- Uses debt movement, foundation movement, and repeated pattern notices to suggest when the current season may no longer fit.
+- Adds a reflective question before making a season recommendation: “What feels most important right now?”
+- Keeps the user in control with “Enter [Season]” or “Continue in [Current Season]”.
+- Clears/dismisses the seasonal change prompt after the user chooses, so the app does not nag on the same review history.
+- Updates season start date when the user actually changes seasons.
+- Version bumped to v1.1.6 / Build 116.
+
 ## v1.1.5 — Beta Review Testing
+
 - Added Beta Mode in Settings.
 - Allows multiple Weekly Reviews to be entered in one sitting using a selected review date.
 - Added backdated test review seeding to quickly trigger multi-week pattern recognition.
 - Added review history clearing for testing without changing current balances.
 - Beta snapshots are marked in exported review history.
 - Version bumped to v1.1.5 / Build 115.
-
-# Changelog
 
 ## v1.1.4 — Weekly Pattern Recognition
 

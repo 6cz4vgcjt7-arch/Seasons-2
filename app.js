@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.1.5";
-  const APP_BUILD=115;
+  const APP_VERSION="v1.1.6";
+  const APP_BUILD=116;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -15,7 +15,7 @@
     preserve:{icon:"❄️",name:"Preserve",line:"Protect your financial independence.",description:"Preserve what you've built so it can continue supporting your life and the people who matter most."}
   };
   function season(id){return SEASONS[id]||SEASONS.establish;}
-  function setSeason(id){const s=season(id);data.seasonId=id;data.seasonName=s.name;data.seasonSince=data.seasonSince || new Date().toLocaleDateString(undefined,{month:"long",year:"numeric"});}
+  function setSeason(id){const s=season(id);const changed=data.seasonId&&data.seasonId!==id;data.seasonId=id;data.seasonName=s.name;if(changed||!data.seasonSince)data.seasonSince=new Date().toLocaleDateString(undefined,{month:"long",year:"numeric"});}
   function accountKind(account){return E.accountKind?E.accountKind(account):"debt";}
   function isDebt(account){return accountKind(account)==="debt";}
   function isFoundation(account){return accountKind(account)==="foundation";}
@@ -159,10 +159,13 @@
     const promo=E.soonestPromo(data);
     const promoLine=promo?`<div class="promoNote">${UI.escapeHtml(promo.name)} promo expires in ${promo.reviewsRemaining} week${promo.reviewsRemaining===1?"":"s"}</div>`:"";
     const progress=E.progressStatus(data);
+    const seasonalSignal=seasonalChangeSignal();
+    const seasonalCard=seasonalSignal?`<div class="card commandCard seasonalNotice tappableCard" role="button" tabindex="0" data-action="beginSeasonalChange"><div class="row"><div><div class="label">We've noticed a seasonal change.</div><div class="sub">Seasons may be asking you to reconsider what deserves attention now.</div></div><div class="chev">›</div></div></div>`:"";
     screens.command.innerHTML=`
       <div class="commandLogo">${UI.cycle(0,"tiny")}</div>
       <div class="commandReflection">${UI.escapeHtml(commandReflection())}</div>
       <div class="dateBlock compactDate"><div class="weekday">${t.weekday}</div><div class="date">${t.date}</div></div>
+      ${seasonalCard}
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version || "Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
       <div class="card commandCard primaryReview tappableCard" role="button" tabindex="0" data-action="startReview">
         <div class="row"><div><div class="value">Weekly Review</div><div class="status">${reviewComplete?"Complete":data.review?.status==="inProgress"?"In Progress":data.review?.status==="allUpdated"?"Ready to Close":"Ready"}</div><div class="sub">${reviewComplete?"Next Thursday":`${data.reviewDay} • ${data.reviewTime}`}</div></div><div class="chev">›</div></div>
@@ -306,6 +309,102 @@
   }
 
 
+  function latestReviewDate(){
+    const snapshots=(data.snapshots||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+    return snapshots[snapshots.length-1]?.date||"";
+  }
+
+  function seasonalPriorityLabel(id){
+    const labels={establish:"Building stability",grow:"Growing wealth",steward:"Managing wisely",preserve:"Protecting the future"};
+    return labels[id]||labels.establish;
+  }
+
+  function accountKindByType(type){
+    const value=String(type||"").toLowerCase();
+    return value.includes("emergency")||value.includes("retirement")?"foundation":"debt";
+  }
+
+  function seasonalChangeSignal(){
+    const snapshots=(data.snapshots||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const minReviews=betaMode()?4:8;
+    if(snapshots.length<minReviews)return null;
+    const recent=snapshots.slice(-Math.max(minReviews,4));
+    const dismissed=data.seasonalChange?.dismissedReviewDate;
+    const newest=recent[recent.length-1]?.date||"";
+    if(dismissed && newest && new Date(dismissed).getTime()>=new Date(newest).getTime())return null;
+
+    const totals=recent.map(snapshot=>{
+      let debt=0;let foundation=0;
+      (snapshot.accounts||[]).forEach(item=>{
+        const balance=Number(item.balance)||0;
+        if(item.paidOff)return;
+        if(accountKindByType(item.type)==="foundation")foundation+=balance;else debt+=balance;
+      });
+      return {date:snapshot.date,debt,foundation};
+    });
+    const first=totals[0];
+    const last=totals[totals.length-1];
+    const debtChange=last.debt-first.debt;
+    const foundationChange=last.foundation-first.foundation;
+    const activeDebt=activeAccounts().filter(isDebt).reduce((sum,a)=>sum+(Number(a.balance)||0),0);
+    const attention=patternNotices(false).length;
+    const current=data.seasonId||"establish";
+    const reasons=[];
+    let suggested=null;
+    let tone="forward";
+
+    if(current!=="establish" && (debtChange>250 || foundationChange<-250 || attention>=2)){
+      suggested="establish";tone="return";
+      if(debtChange>250)reasons.push("Debt balances have increased across several reviews.");
+      if(foundationChange<-250)reasons.push("Foundation balances have been used across several reviews.");
+      if(attention>=2)reasons.push("Several accounts are asking for attention at the same time.");
+    }else if(current==="establish" && (activeDebt<=0 || debtChange<-500) && foundationChange>=0 && attention===0){
+      suggested="grow";
+      if(activeDebt<=0)reasons.push("High-interest debt is no longer the main pressure point.");
+      else reasons.push("Debt has been moving steadily in the right direction.");
+      reasons.push("Your foundation has remained steady or continued to build.");
+    }else if(current==="grow" && activeDebt<=0 && foundationChange>500 && attention===0){
+      suggested="steward";
+      reasons.push("Debt is no longer competing for your attention.");
+      reasons.push("Your foundation has continued to strengthen across several reviews.");
+    }else if(current==="steward" && activeDebt<=0 && foundationChange>=0 && attention===0 && totals.length>=12){
+      suggested="preserve";
+      reasons.push("Your resources have remained stable across a longer season.");
+      reasons.push("Protection and legacy may deserve more attention soon.");
+    }
+    if(!suggested || suggested===current)return null;
+    return {current,suggested,tone,reasons:reasons.slice(0,3),reviewDate:newest,reviewCount:recent.length};
+  }
+
+  function renderSeasonalChangeIntro(){
+    const signal=seasonalChangeSignal();
+    if(!signal){renderSeasonDetail();return;}
+    const current=season(signal.current);
+    const suggested=season(signal.suggested);
+    screens.command.innerHTML=`
+      <div class="reviewHeader"><button class="back" data-action="backToCommand">‹</button><div class="reviewTitle">Seasonal Change</div><span></span></div>
+      <div class="card quietMessage"><div class="label">We've noticed a seasonal change.</div><div class="value smallValue">Your financial patterns may be asking for different attention.</div><p class="sub">This isn't a promotion or a setback. Seasons change because life changes.</p></div>
+      <div class="card"><div class="label">Over the past several reviews</div>${signal.reasons.map(reason=>`<p class="sub">• ${UI.escapeHtml(reason)}</p>`).join("")}</div>
+      <div class="card"><div class="label">Before Seasons makes a recommendation...</div><div class="value smallValue">What feels most important right now?</div><div class="accountList seasonChoiceList">${Object.entries(SEASONS).map(([id,s])=>`<button class="settingChoice" data-action="answerSeasonalPriority" data-value="${id}" data-suggested="${signal.suggested}"><span><b>${UI.escapeHtml(seasonalPriorityLabel(id))}</b><span class="sub">${s.icon} ${UI.escapeHtml(s.name)}</span></span><span class="miniChev">›</span></button>`).join("")}</div></div>
+      <button class="btn secondary" data-action="dismissSeasonalChange">Not now</button>`;
+    show("command");
+  }
+
+  function renderSeasonalChangeRecommendation(priority,suggestedId){
+    const signal=seasonalChangeSignal()||{current:data.seasonId||"establish",suggested:suggestedId||"establish",reasons:[]};
+    const suggested=season(suggestedId||signal.suggested);
+    const current=season(signal.current);
+    const aligned=priority===suggestedId;
+    screens.command.innerHTML=`
+      <div class="reviewHeader"><button class="back" data-action="beginSeasonalChange">‹</button><div class="reviewTitle">Seasonal Change</div><span></span></div>
+      <div class="card seasonDetailHero"><div class="seasonIcon bigSeason">${suggested.icon}</div><div><div class="label">Suggested Season</div><div class="value">${UI.escapeHtml(suggested.name)}</div><p class="sub">Based on both your financial patterns${priority?` and your reflection`:""}, this may be the season that deserves attention now.</p></div></div>
+      <div class="card quietMessage"><div class="label">Seasons change.</div><p class="sub">The goal isn't to stay in one forever. The goal is to recognize what deserves your attention today.</p>${aligned?`<p class="sub"><b>Your reflection points the same direction.</b></p>`:`<p class="sub">Your reflection matters. If ${UI.escapeHtml(current.name)} still feels right, stay there.</p>`}</div>
+      <button class="btn" data-action="enterSuggestedSeason" data-season="${suggestedId||signal.suggested}">Enter ${UI.escapeHtml(suggested.name)}</button>
+      <button class="btn secondary" data-action="keepCurrentSeason">Continue in ${UI.escapeHtml(current.name)}</button>`;
+    show("command");
+  }
+
+
   function renderSeasonDetail(){
     const id=data.seasonId||"establish";
     const current=season(id);
@@ -410,6 +509,7 @@
       <p class="sub reflectionSentence">${UI.escapeHtml(sentence)}</p>
       <div class="card reflectionList">${observations.map(o=>`<div class="reflectionRow"><span>${UI.escapeHtml(o.label)}</span><strong class="${o.kind}">${o.value}</strong></div>`).join("")}</div>
       ${patternNotices(true).length?`<div class="card quietMessage"><div class="label">Pattern noticed</div>${patternNotices(true).map(n=>`<p class="sub"><b>${UI.escapeHtml(n.label)}</b>: ${UI.escapeHtml(n.message)}</p>`).join("")}<p class="sub">Seasons notices the pattern. You still choose the next step.</p></div>`:""}
+      ${seasonalChangeSignal()?`<div class="card quietMessage tappableCard" data-action="beginSeasonalChange"><div class="label">We've noticed a seasonal change.</div><p class="sub">After this review, Seasons may ask whether your current season still fits.</p><div class="miniChev">›</div></div>`:""}
       <button class="btn" data-action="closeWeek">Close Week</button>`;
   }
 
@@ -636,7 +736,12 @@
     backToCommand(){render("command");},
     toggleBetaMode(){data.betaMode=!betaMode();saveRender("settings");},
     seedBetaReviews(){if(confirm("Add four backdated beta reviews using your current accounts?")){seedBetaReviews();}},
-    clearSnapshots(){if(confirm("Clear review history snapshots? Current account balances will stay unchanged.")){data.snapshots=[];saveRender("settings");}},
+    clearSnapshots(){if(confirm("Clear review history snapshots? Current account balances will stay unchanged.")){data.snapshots=[];data.seasonalChange=null;saveRender("settings");}},
+    beginSeasonalChange(){renderSeasonalChangeIntro();},
+    answerSeasonalPriority(node){renderSeasonalChangeRecommendation(node.dataset.value,node.dataset.suggested);},
+    enterSuggestedSeason(node){setSeason(node.dataset.season||"establish");data.seasonalChange={acceptedReviewDate:latestReviewDate(),dismissedReviewDate:latestReviewDate()};save();renderSeasonDetail();},
+    keepCurrentSeason(){data.seasonalChange={dismissedReviewDate:latestReviewDate(),keptSeason:data.seasonId||"establish"};saveRender("command");},
+    dismissSeasonalChange(){data.seasonalChange={dismissedReviewDate:latestReviewDate(),keptSeason:data.seasonId||"establish"};saveRender("command");},
     showSeasonDetail(){renderSeasonDetail();},
     showSeasonInfo(node){renderSeasonInfo(node.dataset.season||data.seasonId||"establish");},
     makeCurrentSeason(node){setSeason(node.dataset.season||"establish");save();renderSeasonDetail();},
