@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.5 — Beta Review Testing
+- Added Beta Mode in Settings.
+- Allows multiple Weekly Reviews to be entered in one sitting using a selected review date.
+- Added backdated test review seeding to quickly trigger multi-week pattern recognition.
+- Added review history clearing for testing without changing current balances.
+- Beta snapshots are marked in exported review history.
+- Version bumped to v1.1.5 / Build 115.
+
+# Changelog
+
 ## v1.1.4 — Weekly Pattern Recognition
 
 - Adds several-week balance pattern recognition across all active accounts, not just the Focus account.

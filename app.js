@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.1.4";
-  const APP_BUILD=114;
+  const APP_VERSION="v1.1.5";
+  const APP_BUILD=115;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -59,6 +59,18 @@
   function activeAccounts(){return E.activeAccounts(data);}
   function completedAccounts(){return E.completedAccounts(data);}
   function focus(){return E.focusAccount(data);}
+  function betaMode(){return Boolean(data.betaMode);}
+  function betaReviewDateValue(){return (data.review&&data.review.reviewDate)||new Date().toISOString().slice(0,10);}
+  function betaDefaultReviewDate(){
+    const snapshots=(data.snapshots||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const last=snapshots[snapshots.length-1]?.date;
+    if(last){const d=new Date(last);d.setDate(d.getDate()+7);return d.toISOString().slice(0,10);}
+    return new Date().toISOString().slice(0,10);
+  }
+  function reviewTimestamp(){
+    if(betaMode() && data.review?.reviewDate){return new Date(`${data.review.reviewDate}T12:00:00`).toISOString();}
+    return new Date().toISOString();
+  }
   function focusReason(account){
     if(!account)return completedAccounts().length?"All active accounts are complete. Keep the weekly habit alive.":"Add an account so Seasons can choose what deserves attention this week.";
     if(isFoundation(account))return "This foundation supports the season you are in right now.";
@@ -325,7 +337,7 @@
       return;
     }
     if(data.review.status==="complete"){
-      screens.review.innerHTML=`<div class="reviewHeader"><button class="back" data-screen="command">‹</button><div class="reviewTitle">Weekly Review</div><span></span></div><div class="card heroCard"><div><div class="label">This Week</div><div class="value">Complete</div><div class="sub">Next Thursday</div></div>${UI.cycle(4,"small")}</div><div class="card"><div class="label">Review</div><div class="sub">Your week is in order.</div><button class="btn secondary" data-action="beginNewReview">Edit This Week’s Review</button></div>`;
+      screens.review.innerHTML=`<div class="reviewHeader"><button class="back" data-screen="command">‹</button><div class="reviewTitle">Weekly Review</div><span></span></div><div class="card heroCard"><div><div class="label">This Week</div><div class="value">Complete</div><div class="sub">${betaMode()?"Beta review saved":"Next Thursday"}</div></div>${UI.cycle(4,"small")}</div><div class="card"><div class="label">Review</div><div class="sub">Your week is in order.</div><button class="btn secondary" data-action="beginNewReview">${betaMode()?"Enter Another Test Week":"Edit This Week’s Review"}</button></div>`;
       return;
     }
     if(data.review.status==="paidOffPrompt"){renderPaidOffPrompt();return;}
@@ -333,7 +345,7 @@
     if(data.review.status==="allUpdated"){renderAllUpdated();return;}
     if(data.review.status!=="inProgress"){
       const f=focus();
-      screens.review.innerHTML=`<div class="reviewHeader"><button class="back" data-screen="command">‹</button><div class="reviewTitle">Weekly Review</div><span></span></div><div class="cycleWrap">${UI.cycle(0)}</div><div class="screenTitle">Weekly Review</div><p class="sub">Update your accounts one at a time.</p>${f?`<div class="card"><div class="label">This Week’s Focus</div><div class="value">${UI.escapeHtml(f.name)}</div><div class="sub">${UI.money(f.balance)} last reviewed</div></div>`:""}<div class="sub center">0 of ${accounts.length} accounts updated</div><button class="btn" data-action="beginNewReview">Start Review</button>`;
+      screens.review.innerHTML=`<div class="reviewHeader"><button class="back" data-screen="command">‹</button><div class="reviewTitle">Weekly Review</div><span></span></div><div class="cycleWrap">${UI.cycle(0)}</div><div class="screenTitle">Weekly Review</div><p class="sub">Update your accounts one at a time.</p>${betaMode()?`<div class="card"><div class="label">Beta Mode</div><div class="sub">Choose the review date for this test week. This lets you enter several weeks of history in one sitting.</div><input id="betaReviewDateStart" type="date" value="${betaDefaultReviewDate()}"></div>`:""}${f?`<div class="card"><div class="label">This Week’s Focus</div><div class="value">${UI.escapeHtml(f.name)}</div><div class="sub">${UI.money(f.balance)} last reviewed</div></div>`:""}<div class="sub center">0 of ${accounts.length} accounts updated</div><button class="btn" data-action="beginNewReview">${betaMode()?"Start Test Review":"Start Review"}</button>`;
       return;
     }
     const index=Math.max(0,Math.min(data.review.index||0,accounts.length-1));
@@ -505,6 +517,7 @@
     screens.settings.innerHTML=`<div class="screenTitle">Settings</div>
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version||"Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
       <div class="card"><div class="settingsGroup"><div class="label">Preferences</div><button class="settingRow tappable" data-action="editReviewDay"><span>Weekly Review Day</span><span><span class="muted">${UI.escapeHtml(data.reviewDay)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editReviewTime"><span>Review Time</span><span><span class="muted">${UI.escapeHtml(data.reviewTime)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editStrategy"><span>Focus Strategy</span><span><span class="muted">${UI.strategyLabel(data.strategy)}</span><span class="miniChev">›</span></span></button></div></div>
+      <div class="card"><div class="settingsGroup"><div class="label">Testing</div><button class="settingRow tappable" data-action="toggleBetaMode"><span>Beta Mode</span><span><span class="muted">${betaMode()?"On":"Off"}</span><span class="miniChev">›</span></span></button>${betaMode()?`<button class="settingRow tappable" data-action="seedBetaReviews"><span>Seed 4 Test Reviews</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="clearSnapshots"><span>Clear Review History</span><span class="miniChev">›</span></button><div class="sub">Beta Mode lets you enter multiple backdated Weekly Reviews to test pattern recognition.</div>`:""}</div></div>
       <div class="card"><div class="label">Privacy</div><div class="value">Local</div><div class="sub">No bank connections. Your information stays on this device unless you export it.</div></div>
       <div class="card"><button class="settingRow tappable" data-action="tapVersion"><span>Version</span><span><span class="muted">${APP_VERSION} · Build ${APP_BUILD}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="forceUpdateCheck"><span>Check for Update</span><span class="miniChev">›</span></button></div>
       ${dev?`<div class="card"><div class="label">Developer</div><button class="settingRow tappable" data-action="loadDemoData"><span>Load Demo Data</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="clearAppCache"><span>Clear App Cache</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="resetAll"><span class="dangerText">Reset Local Data</span><span class="miniChev">›</span></button></div>`:""}
@@ -594,6 +607,26 @@
     setTimeout(()=>URL.revokeObjectURL(link.href),1000);
   }
 
+  function seedBetaReviews(){
+    const accounts=reviewAccounts();
+    if(!accounts.length){alert("Add at least one account before seeding test reviews.");return;}
+    const baseDate=new Date();baseDate.setDate(baseDate.getDate()-28);
+    data.snapshots=data.snapshots||[];
+    const original=Object.fromEntries(accounts.map(a=>[a.id,Number(a.balance)||0]));
+    for(let week=0;week<4;week++){
+      const d=new Date(baseDate);d.setDate(baseDate.getDate()+week*7);
+      const accountRows=accounts.map((a,index)=>{
+        const start=original[a.id];
+        let balance=start;
+        if(isDebt(a)){balance=Math.max(0,start + (index===0?week*75:-week*50));}
+        else{balance=Math.max(0,start + (index===0?-week*40:week*60));}
+        return {id:a.id,name:a.name,type:a.type||"Account",balance,paidOff:Boolean(a.paidOff)};
+      });
+      data.snapshots.push({date:d.toISOString(),beta:true,totalBalance:accountRows.reduce((sum,a)=>sum+a.balance,0),focusAccountId:focus()?.id||null,reflection:"Beta test review saved.",observations:[],patternNotices:[],notes:{},accounts:accountRows});
+    }
+    saveRender("settings");
+  }
+
   const actions={
     startSeasonReflection(){data.onboarding.step="discover";saveRender("onboarding");},
     recommendCurrentSeason(){data.onboarding.answers={q1:UI.byId("seasonQ1").value,q2:UI.byId("seasonQ2").value,q3:UI.byId("seasonQ3").value};data.onboarding.recommendedSeason=recommendSeason();data.onboarding.step="recommendation";saveRender("onboarding");},
@@ -601,6 +634,9 @@
     chooseAnotherSeason(){data.onboarding.step="chooseSeason";saveRender("onboarding");},
     selectSeason(node){setSeason(node.dataset.season||"establish");data.onboarding.step="setup";saveRender("onboarding");},
     backToCommand(){render("command");},
+    toggleBetaMode(){data.betaMode=!betaMode();saveRender("settings");},
+    seedBetaReviews(){if(confirm("Add four backdated beta reviews using your current accounts?")){seedBetaReviews();}},
+    clearSnapshots(){if(confirm("Clear review history snapshots? Current account balances will stay unchanged.")){data.snapshots=[];saveRender("settings");}},
     showSeasonDetail(){renderSeasonDetail();},
     showSeasonInfo(node){renderSeasonInfo(node.dataset.season||data.seasonId||"establish");},
     makeCurrentSeason(node){setSeason(node.dataset.season||"establish");save();renderSeasonDetail();},
@@ -616,8 +652,8 @@
       if(help)help.textContent=foundation?"Foundation accounts track what you are building.":"Debt accounts track what you are paying down.";
     },
     finishSetup(){data.reviewDay=UI.byId("setupDay").value;data.reviewTime=UI.byId("setupTime").value||"7:30 PM";data.strategy=UI.byId("setupStrategy").value;data.setupComplete=true;if(!data.seasonSince)data.seasonSince=new Date().toLocaleDateString(undefined,{month:"long",year:"numeric"});saveRender("command");},
-    startReview(){if(!activeAccounts().length){renderAccountForm();return;}if(data.review.status==="complete"){render("review");return;}if(data.review.status!=="inProgress"&&data.review.status!=="allUpdated"&&data.review.status!=="paidOffPrompt"){data.review={status:"ready",index:0,draft:{},notes:{},lastCompleted:data.review?.lastCompleted||null,nextReview:"Next Thursday",pendingPaidOff:null,pendingReflection:null};}saveRender("review");},
-    beginNewReview(){data.review={status:"inProgress",index:0,draft:{},notes:{},lastCompleted:data.review?.lastCompleted||null,nextReview:"Next Thursday",pendingPaidOff:null,pendingReflection:null};saveRender("review");},
+    startReview(){if(!activeAccounts().length){renderAccountForm();return;}if(data.review.status==="complete"){render("review");return;}if(data.review.status!=="inProgress"&&data.review.status!=="allUpdated"&&data.review.status!=="paidOffPrompt"){data.review={status:"ready",index:0,draft:{},notes:{},lastCompleted:data.review?.lastCompleted||null,nextReview:"Next Thursday",pendingPaidOff:null,pendingReflection:null,reviewDate:betaMode()?betaDefaultReviewDate():null};}saveRender("review");},
+    beginNewReview(){const picked=UI.byId("betaReviewDateStart")?.value||betaDefaultReviewDate();data.review={status:"inProgress",index:0,draft:{},notes:{},reviewDate:betaMode()?picked:null,lastCompleted:data.review?.lastCompleted||null,nextReview:"Next Thursday",pendingPaidOff:null,pendingReflection:null};saveRender("review");},
     cancelReview(){saveRender("command");},
     saveAccountReview(){const accounts=reviewAccounts();const account=accounts[data.review.index];const input=UI.byId("todayBalance");if(!account||!input)return;const value=Number(input.value)||0;data.review.draft=data.review.draft||{};data.review.notes=data.review.notes||{};data.review.draft[account.id]=value;if(value===0 && !account.paidOff){data.review.status="paidOffPrompt";data.review.pendingPaidOff={accountId:account.id};saveRender("review");return;}const delta=accountDelta(account,value);if(Math.abs(delta)>=1){data.review.status="reflection";data.review.pendingReflection={accountId:account.id,previous:Number(account.balance)||0,current:value,delta};saveRender("review");return;}advanceReview();},
     backFromPaidOffPrompt(){data.review.status="inProgress";data.review.pendingPaidOff=null;saveRender("review");},
@@ -627,7 +663,7 @@
     confirmPaidOff(){const pending=data.review.pendingPaidOff;const account=data.accounts.find(a=>a.id===pending?.accountId);if(account){data.review.draft[account.id]=0;completeAccount(account);}advanceReview();},
     notPaidOffYet(){advanceReview();},
     resumeLastAccount(){data.review.status="inProgress";data.review.index=Math.max(0,(data.review.index||0)-1);saveRender("review");},
-    closeWeek(){const observations=weeklyObservations();const reflection=weeklyReflectionSentence(observations);const notices=patternNotices(true);const accounts=reviewAccounts();accounts.forEach(a=>{if(data.review.draft&&data.review.draft[a.id]!==undefined && !a.paidOff)a.balance=Number(data.review.draft[a.id])||0;});data.review.status="complete";data.review.lastCompleted=new Date().toISOString();const allVisible=E.allAccounts(data).filter(a=>!a.archived);data.snapshots.push({date:data.review.lastCompleted,totalBalance:E.totalBalance(activeAccounts(data)),focusAccountId:focus()?.id||null,reflection,observations,patternNotices:notices,notes:data.review.notes||{},accounts:allVisible.map(a=>({id:a.id,name:a.name,type:a.type||"Account",balance:a.balance,paidOff:Boolean(a.paidOff)}))});save();renderWeekClosed();},
+    closeWeek(){const observations=weeklyObservations();const reflection=weeklyReflectionSentence(observations);const notices=patternNotices(true);const accounts=reviewAccounts();accounts.forEach(a=>{if(data.review.draft&&data.review.draft[a.id]!==undefined && !a.paidOff)a.balance=Number(data.review.draft[a.id])||0;});const completedAt=reviewTimestamp();data.review.status="complete";data.review.lastCompleted=completedAt;const allVisible=E.allAccounts(data).filter(a=>!a.archived);data.snapshots.push({date:completedAt,beta:Boolean(betaMode()),totalBalance:E.totalBalance(activeAccounts(data)),focusAccountId:focus()?.id||null,reflection,observations,patternNotices:notices,notes:data.review.notes||{},accounts:allVisible.map(a=>({id:a.id,name:a.name,type:a.type||"Account",balance:a.balance,paidOff:Boolean(a.paidOff)}))});save();renderWeekClosed();},
     showAddAccount(){renderAccountForm();},
     showAccountDetail(node){const account=data.accounts.find(a=>a.id===node.dataset.id);if(account)renderAccountDetail(account);},
     manageAccount(node){const account=data.accounts.find(a=>a.id===node.dataset.id);if(account)renderManageAccount(account);},
