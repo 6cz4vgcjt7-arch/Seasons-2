@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.1.1";
-  const APP_BUILD=111;
+  const APP_VERSION="v1.1.2";
+  const APP_BUILD=112;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -50,6 +50,14 @@
   function activeAccounts(){return E.activeAccounts(data);}
   function completedAccounts(){return E.completedAccounts(data);}
   function focus(){return E.focusAccount(data);}
+  function focusReason(account){
+    if(!account)return completedAccounts().length?"All active accounts are complete. Keep the weekly habit alive.":"Add an account so Seasons can choose what deserves attention this week.";
+    if(isFoundation(account))return "This foundation supports the season you are in right now.";
+    const promo=account.promoEnabled && account.promoExpires ? E.weeklyReviewsUntil(account.promoExpires) : null;
+    if(promo!==null && promo>=0 && promo<=12)return `Promotional APR expires in ${promo} week${promo===1?"":"s"}. This deserves attention before the standard APR returns.`;
+    if(data.strategy==="snowball")return "This is your smallest active balance. Completing it can simplify your monthly cash flow.";
+    return "Every extra dollar sent here saves more interest than your other active debts.";
+  }
   function show(screen){UI.showScreen(screen);UI.setActiveNav(screen==="onboarding"?"command":screen);}
 
   function render(screen){
@@ -135,12 +143,12 @@
       <div class="commandReflection">${UI.escapeHtml(commandReflection())}</div>
       <div class="dateBlock compactDate"><div class="weekday">${t.weekday}</div><div class="date">${t.date}</div></div>
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version || "Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
-      <div class="card commandCard primaryReview">
+      <div class="card commandCard primaryReview tappableCard" role="button" tabindex="0" data-action="startReview">
         <div class="row"><div><div class="value">Weekly Review</div><div class="status">${reviewComplete?"Complete":data.review?.status==="inProgress"?"In Progress":data.review?.status==="allUpdated"?"Ready to Close":"Ready"}</div><div class="sub">${reviewComplete?"Next Thursday":`${data.reviewDay} • ${data.reviewTime}`}</div></div><div class="chev">›</div></div>
         <button class="btn compactBtn" data-action="startReview">${data.review?.status==="inProgress"?"Continue Weekly Review":data.review?.status==="allUpdated"?"Close Week":reviewComplete?"View This Week":"Start Weekly Review"}</button>
       </div>
       <div class="card commandCard tappableCard" role="button" tabindex="0" data-action="showSeasonDetail"><div class="row"><div><div class="label">Season</div><div class="value">${season(data.seasonId).icon} ${UI.escapeHtml(data.seasonName)}</div><div class="sub">Since ${UI.escapeHtml(data.seasonSince)} • ${progress}</div>${promoLine}</div><div class="chev">›</div></div></div>
-      <div class="card commandCard tappableCard" role="button" tabindex="0" data-action="showFocusDetail"><div class="row"><div><div class="label">Focus</div><div class="value">${f?UI.escapeHtml(f.name):completedAccounts().length?"Season Complete":"Add Account"}</div></div><div><div class="value alignRight">${f?UI.money(f.balance):"—"}</div><div class="chev compactChev">›</div></div></div></div>`;
+      <div class="card commandCard tappableCard" role="button" tabindex="0" data-action="showFocusDetail"><div class="row"><div><div class="label">Focus</div><div class="value">${f?UI.escapeHtml(f.name):completedAccounts().length?"Season Complete":"Add Account"}</div><div class="sub">${UI.escapeHtml(focusReason(f))}</div></div><div><div class="value alignRight">${f?UI.money(f.balance):"—"}</div><div class="chev compactChev">›</div></div></div></div>`;
   }
 
   function reviewAccounts(){return E.reviewOrder(data);}
@@ -334,9 +342,7 @@
       ${account.paidOff?`<div class="pill detailPill">Paid Off</div>`:""}
       <div class="card detailCard">
         <div class="detailRow"><span>Current Balance</span><strong>${UI.money(account.balance)}</strong></div>
-        <div class="detailRow"><span>APR</span><strong>${Number(account.apr||0).toFixed(2)}%</strong></div>
-        <div class="detailRow"><span>Minimum Payment</span><strong>${UI.money(account.min)}</strong></div>
-        <div class="detailRow"><span>Statement Day</span><strong>${account.statementDay?UI.escapeHtml(account.statementDay):"—"}</strong></div>
+        ${isDebt(account)?`<div class="detailRow"><span>APR</span><strong>${Number(account.apr||0).toFixed(2)}%</strong></div><div class="detailRow"><span>Minimum Payment</span><strong>${UI.money(account.min)}</strong></div><div class="detailRow"><span>Statement Day</span><strong>${account.statementDay?UI.escapeHtml(account.statementDay):"—"}</strong></div>`:`<div class="detailRow"><span>Purpose</span><strong>Foundation</strong></div>`}
       </div>
       ${account.promoEnabled?`<div class="card detailCard"><div class="label">Promotional APR</div><div class="detailRow"><span>Current Promo APR</span><strong>${Number(account.promoApr||0).toFixed(2)}%</strong></div><div class="detailRow"><span>Expires</span><strong>${account.promoExpires?UI.prettyDate(account.promoExpires):"—"}</strong></div><div class="detailRow"><span>Standard APR After</span><strong>${Number(account.standardApr||account.apr||0).toFixed(2)}%</strong></div>${promo?`<div class="helper">${promo}</div>`:""}</div>`:""}
       <div class="card detailCard"><div class="label">History</div>${history.length?history.slice(0,8).map(entry=>`<div class="detailRow"><span>${UI.prettySnapshotDate(entry.date)}</span><strong>${UI.money(entry.balance)}</strong></div>`).join(""):`<div class="sub">Balance history will appear after Weekly Reviews.</div>`}</div>
@@ -436,6 +442,16 @@
     acceptSeasonRecommendation(){setSeason(data.onboarding.recommendedSeason||"establish");data.onboarding.step="setup";saveRender("onboarding");},
     chooseAnotherSeason(){data.onboarding.step="chooseSeason";saveRender("onboarding");},
     selectSeason(node){setSeason(node.dataset.season||"establish");data.onboarding.step="setup";saveRender("onboarding");},
+    backToCommand(){render("command");},
+    showSeasonDetail(){renderSeasonDetail();},
+    showFocusDetail(){const f=focus();if(f)renderAccountDetail(f);else renderAccountForm();},
+    accountTypeChanged(){
+      const type=String(UI.byId("formType")?.value||"").toLowerCase();
+      const foundation=type.includes("emergency")||type.includes("retirement");
+      UI.byId("debtFields")?.classList.toggle("hidden",foundation);
+      const help=UI.byId("accountTypeHelp");
+      if(help)help.textContent=foundation?"Foundation accounts track what you are building.":"Debt accounts track what you are paying down.";
+    },
     finishSetup(){data.reviewDay=UI.byId("setupDay").value;data.reviewTime=UI.byId("setupTime").value||"7:30 PM";data.strategy=UI.byId("setupStrategy").value;data.setupComplete=true;if(!data.seasonSince)data.seasonSince=new Date().toLocaleDateString(undefined,{month:"long",year:"numeric"});saveRender("command");},
     startReview(){if(!activeAccounts().length){renderAccountForm();return;}if(data.review.status==="complete"){render("review");return;}if(data.review.status!=="inProgress"&&data.review.status!=="allUpdated"&&data.review.status!=="paidOffPrompt"){data.review={status:"ready",index:0,draft:{},notes:{},lastCompleted:data.review?.lastCompleted||null,nextReview:"Next Thursday",pendingPaidOff:null,pendingReflection:null};}saveRender("review");},
     beginNewReview(){data.review={status:"inProgress",index:0,draft:{},notes:{},lastCompleted:data.review?.lastCompleted||null,nextReview:"Next Thursday",pendingPaidOff:null,pendingReflection:null};saveRender("review");},
