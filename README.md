@@ -2,7 +2,7 @@
 
 **Seasons is a weekly financial habit app that helps people build lasting financial achievements through intentional observation, reflection, and steady progress.**
 
-This is the **v1.3.2 The Attention Release** prototype release. It continues the founder-track PWA work and keeps the app local-only.
+This is the **v1.3.3 Segmented Navigation Icons** prototype release. It continues the founder-track PWA work and keeps the app local-only.
 
 ## What v1.3 includes
 
@@ -29,7 +29,7 @@ During this prototype stage, use demo or approximate data until the privacy and 
 
 ## Version
 
-v1.3 · Build 130
+v1.3.3 · Build 133
 
 
 ## v1.3 additions
@@ -41,3 +41,9 @@ v1.3 · Build 130
 ## v1.3.2
 
 This release refines the This Week header and lets On the Horizon items split future capacity across multiple destinations using percentages or dollar amounts.
+
+## v1.3.3
+
+- Bottom navigation icons now use the shared segmented-circle mark.
+- Review remains visually emphasized while using the same icon language.
+- Navigation keeps the Journal label.

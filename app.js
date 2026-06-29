@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.3.2";
-  const APP_BUILD=132;
+  const APP_VERSION="v1.3.3";
+  const APP_BUILD=133;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();

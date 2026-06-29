@@ -1,3 +1,11 @@
+# v1.3.3 — Segmented Navigation Icons
+
+- Replaced the varied bottom navigation icons with the shared Seasons segmented-circle mark.
+- Kept the Review navigation item visually emphasized while using the same segmented-circle language.
+- Confirmed bottom navigation label is Journal.
+- Performed a small terminology pass for the current release notes.
+- Updated build to v1.3.3 / Build 133.
+
 # v1.3.2 — This Week Header and Horizon Allocations
 
 - Moved the This Week label to a centered top heading.
