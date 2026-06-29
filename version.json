@@ -1,1 +1,5 @@
-{"version":"v1.0","build":100}
+{
+  "version": "v1.1.0",
+  "build": 110,
+  "name": "Catch-Up Release"
+}

@@ -29,3 +29,8 @@ The weekly review is not just data entry. It is a moment of attention that helps
 ## The Promise
 
 Your season may change. Your weekly habit remains the same.
+
+
+## Foundations
+
+Emergency Fund and Retirement are treated as Foundations, not generic assets, because they support the Establish season and keep the weekly review useful beyond debt payoff.

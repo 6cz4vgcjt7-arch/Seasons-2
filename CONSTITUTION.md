@@ -35,3 +35,11 @@ If removing something does not make the experience worse, it should not be there
 
 ## 12. Seasons should feel like a financial notebook.
 It should not feel like a noisy dashboard or engagement machine.
+
+
+## Catch-Up Additions
+
+- Foundation accounts begin with Emergency Fund and Retirement.
+- Complexity is earned.
+- Every new feature must strengthen the Weekly Review.
+- Seasons recommends; users decide.

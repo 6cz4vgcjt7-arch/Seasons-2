@@ -1,6 +1,6 @@
 (function(){
-  const APP_VERSION="v1.0";
-  const APP_BUILD=100;
+  const APP_VERSION="v1.1.0";
+  const APP_BUILD=110;
   let updateInfo=null;
   let versionTapCount=0;
   let data=window.CCStorage.load();
@@ -16,6 +16,25 @@
   };
   function season(id){return SEASONS[id]||SEASONS.establish;}
   function setSeason(id){const s=season(id);data.seasonId=id;data.seasonName=s.name;data.seasonSince=data.seasonSince || new Date().toLocaleDateString(undefined,{month:"long",year:"numeric"});}
+  function accountKind(account){return E.accountKind?E.accountKind(account):"debt";}
+  function isDebt(account){return accountKind(account)==="debt";}
+  function isFoundation(account){return accountKind(account)==="foundation";}
+  function isRetirement(account){return String(account?.type||"").toLowerCase().includes("retirement");}
+  function accountIcon(account){if(isFoundation(account))return isRetirement(account)?"☀️":"🌱";return "";}
+  function commandReflection(){
+    const id=data.seasonId||"establish";
+    if(id==="grow")return "Consistency compounds over time.";
+    if(id==="steward")return "Small decisions today shape tomorrow.";
+    if(id==="preserve")return "Protecting what you've built creates lasting freedom.";
+    return "Building your foundation creates options later.";
+  }
+  function seasonWelcome(id){
+    if(id==="establish")return "Every new chapter begins by strengthening the foundation beneath it.";
+    if(id==="grow")return "The work you did in Establish made this season possible.";
+    if(id==="steward")return "Your growing resources can now support broader priorities.";
+    if(id==="preserve")return "This season is about protecting the independence you've worked to build.";
+    return "What matters is recognizing what deserves your attention today.";
+  }
   function recommendSeason(){
     const answers=data.onboarding?.answers||{};
     const scores={establish:0,grow:0,steward:0,preserve:0};
@@ -112,15 +131,16 @@
     const promoLine=promo?`<div class="promoNote">${UI.escapeHtml(promo.name)} promo expires in ${promo.reviewsRemaining} week${promo.reviewsRemaining===1?"":"s"}</div>`:"";
     const progress=E.progressStatus(data);
     screens.command.innerHTML=`
-      <div class="topbar brandOnly"><h1 class="brand">SEASONS</h1></div>
-      <div class="dateBlock"><div class="weekday">${t.weekday}</div><div class="date">${t.date}</div></div>
+      <div class="commandLogo">${UI.cycle(0,"tiny")}</div>
+      <div class="commandReflection">${UI.escapeHtml(commandReflection())}</div>
+      <div class="dateBlock compactDate"><div class="weekday">${t.weekday}</div><div class="date">${t.date}</div></div>
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version || "Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
-      <div class="card">
+      <div class="card commandCard primaryReview">
         <div class="row"><div><div class="value">Weekly Review</div><div class="status">${reviewComplete?"Complete":data.review?.status==="inProgress"?"In Progress":data.review?.status==="allUpdated"?"Ready to Close":"Ready"}</div><div class="sub">${reviewComplete?"Next Thursday":`${data.reviewDay} • ${data.reviewTime}`}</div></div><div class="chev">›</div></div>
-        <button class="btn" data-action="startReview">${data.review?.status==="inProgress"?"Continue Weekly Review":data.review?.status==="allUpdated"?"Close Week":reviewComplete?"View This Week":"Start Weekly Review"}</button>
+        <button class="btn compactBtn" data-action="startReview">${data.review?.status==="inProgress"?"Continue Weekly Review":data.review?.status==="allUpdated"?"Close Week":reviewComplete?"View This Week":"Start Weekly Review"}</button>
       </div>
-      <div class="card" data-screen="accounts"><div class="label">Focus</div><div class="value">${f?UI.escapeHtml(f.name):completedAccounts().length?"Season Complete":"Add Account"}</div><div class="spacer"></div><div class="value">${f?UI.money(f.balance):"—"}</div></div>
-      <div class="card"><div class="row"><div><div class="label">Season</div><div class="value">${season(data.seasonId).icon} ${UI.escapeHtml(data.seasonName)}</div><div class="sub">Since ${UI.escapeHtml(data.seasonSince)} • ${progress}</div>${promoLine}</div><div class="chev">›</div></div></div>`;
+      <div class="card commandCard tappableCard" data-action="showSeasonDetail"><div class="row"><div><div class="label">Season</div><div class="value">${season(data.seasonId).icon} ${UI.escapeHtml(data.seasonName)}</div><div class="sub">Since ${UI.escapeHtml(data.seasonSince)} • ${progress}</div>${promoLine}</div><div class="chev">›</div></div></div>
+      <div class="card commandCard tappableCard" data-action="showFocusDetail"><div class="row"><div><div class="label">Focus</div><div class="value">${f?UI.escapeHtml(f.name):completedAccounts().length?"Season Complete":"Add Account"}</div></div><div><div class="value alignRight">${f?UI.money(f.balance):"—"}</div><div class="chev compactChev">›</div></div></div></div>`;
   }
 
   function reviewAccounts(){return E.reviewOrder(data);}
@@ -135,14 +155,13 @@
   function accountDelta(account,newBalance){
     const previous=Number(account?.balance)||0;
     const current=Number(newBalance)||0;
-    // For debt accounts, a positive change means the amount owed went down.
-    return previous-current;
+    return isDebt(account) ? previous-current : current-previous;
   }
 
-  function changeLine(delta){
+  function changeLine(delta,account){
     const amount=UI.money(Math.abs(delta));
-    if(delta>0)return `<div class="changeLine good">↓ ${amount} since last review</div>`;
-    if(delta<0)return `<div class="changeLine attention">↑ ${amount} since last review</div>`;
+    if(delta>0)return `<div class="changeLine good">${isDebt(account)?"↓":"↑"} ${amount} since last review</div>`;
+    if(delta<0)return `<div class="changeLine attention">${isDebt(account)?"↑":"↓"} ${amount} since last review</div>`;
     return `<div class="changeLine neutral">No meaningful change</div>`;
   }
 
@@ -173,6 +192,18 @@
     if(focusObs?.kind==="attention")return "Your Focus account increased this week. A short note can help explain the pattern later.";
     if(promoObs)return "A promotional APR is approaching. Planning ahead gives you more options.";
     return "Your review is complete and your records are current.";
+  }
+
+
+  function renderSeasonDetail(){
+    const current=season(data.seasonId);
+    screens.command.innerHTML=`
+      <div class="reviewHeader"><button class="back" data-action="backToCommand">‹</button><div class="reviewTitle">Current Season</div><span></span></div>
+      <div class="card seasonDetailHero"><div class="seasonIcon bigSeason">${current.icon}</div><div><div class="value">${UI.escapeHtml(current.name)}</div><div class="sub">${UI.escapeHtml(current.line)}</div><p class="sub">${UI.escapeHtml(current.description)}</p></div></div>
+      <div class="card quietMessage"><div class="value">Seasons change.</div><p class="sub">The goal isn't to stay in one forever. The goal is to recognize what deserves your attention today.</p></div>
+      <div class="sectionLabel">The Four Financial Seasons</div>
+      <div class="accountList">${Object.entries(SEASONS).map(([id,s])=>`<div class="accountRow ${id===data.seasonId?"selectedSeasonRow":""}"><div class="accountMeta"><div>${s.icon} ${UI.escapeHtml(s.name)}</div><div class="sub">${UI.escapeHtml(s.line)}</div></div>${id===data.seasonId?'<span class="check miniCheck">✓</span>':''}</div>`).join("")}</div>`;
+    show("command");
   }
 
   function renderReview(){
@@ -222,7 +253,7 @@
       <div class="cycleWrap">${UI.cycle(UI.reviewSegments((data.review.index||0)+1,reviewAccounts().length))}</div>
       <div class="card center reflectionCard">
         <div class="label">${UI.escapeHtml(account.name)}</div>
-        ${changeLine(delta)}
+        ${changeLine(delta,account)}
         <p class="sub">${isIncrease?"Would you like to add a note for later?":"Recorded for this week."}</p>
         ${isIncrease?`<button class="btn secondary" data-action="addReflectionNote">Add Note</button>`:""}
         <button class="btn" data-action="continueAfterReflection">Continue</button>
@@ -279,12 +310,17 @@
 
   function renderAccounts(){
     const accounts=activeAccounts();
+    const debts=accounts.filter(isDebt);
+    const foundations=accounts.filter(isFoundation);
     const complete=completedAccounts();
     const f=focus();
+    const row=(a)=>{const promo=promoSummary(a);return `<div class="accountRow" data-action="showAccountDetail" data-id="${a.id}"><div class="accountMeta"><div>${f&&f.id===a.id?`<span class="focusDot"></span>`:""}${accountIcon(a)?`<span class="foundationIcon">${accountIcon(a)}</span> `:""}${UI.escapeHtml(a.name)}</div><div class="sub">${UI.escapeHtml(a.type||"Account")}${promo?` • ${promo}`:""}</div></div><div class="row"><span>${UI.money(a.balance)}</span></div></div>`};
     screens.accounts.innerHTML=`
       <div class="reviewHeader"><div class="screenTitle">Accounts</div><button class="smallBtn" data-action="showAddAccount">＋</button></div>
-      <div class="sectionLabel">Active</div>
-      <div class="accountList">${accounts.length?accounts.map(a=>{const promo=promoSummary(a);return `<div class="accountRow" data-action="showAccountDetail" data-id="${a.id}"><div class="accountMeta"><div>${f&&f.id===a.id?`<span class="focusDot"></span>`:""}${UI.escapeHtml(a.name)}</div><div class="sub">${UI.escapeHtml(a.type||"Account")}${promo?` • ${promo}`:""}</div></div><div class="row"><span>${UI.money(a.balance)}</span></div></div>`}).join(""):`<div class="empty">No active accounts.</div>`}</div>
+      <div class="sectionLabel">Active Debts</div>
+      <div class="accountList">${debts.length?debts.map(row).join(""):`<div class="empty">No active debts.</div>`}</div>
+      <div class="sectionLabel">Foundations</div>
+      <div class="accountList">${foundations.length?foundations.map(row).join(""):`<div class="empty">No foundations yet.</div>`}</div>
       ${complete.length?`<div class="sectionLabel completedLabel">Completed</div><div class="accountList">${complete.map(a=>`<div class="accountRow completedRow" data-action="showAccountDetail" data-id="${a.id}"><div class="accountMeta"><div><span class="check miniCheck">✓</span>${UI.escapeHtml(a.name)}</div><div class="sub">Completed ${a.completedAt?UI.prettySnapshotDate(a.completedAt):""}</div></div><div>${UI.money(0)}</div></div>`).join("")}</div>`:""}
       <button class="btn secondary" data-action="showAddAccount">Add Account</button>`;
   }
@@ -321,17 +357,32 @@
 
   function renderAccountForm(account=null){
     const isEdit=Boolean(account);const promoOn=Boolean(account?.promoEnabled);
+    const kind=isFoundation(account)?"foundation":"debt";
     screens.accounts.innerHTML=`
       <div class="reviewHeader"><button class="back" data-action="backToAccounts">‹</button><div class="reviewTitle">${isEdit?"Edit Account":"Add Account"}</div><span></span></div>
       <div class="card">
-        <label class="label" for="formName">Account Name</label><input id="formName" value="${UI.escapeHtml(account?.name||"")}" placeholder="e.g., Chase Freedom">
-        <label class="label" for="formType">Account Type</label><select id="formType"><option ${account?.type==="Credit Card"?"selected":""}>Credit Card</option><option ${account?.type==="Auto Loan"?"selected":""}>Auto Loan</option><option ${account?.type==="Personal Loan"?"selected":""}>Personal Loan</option><option ${account?.type==="Student Loan"?"selected":""}>Student Loan</option><option ${account?.type==="HELOC"?"selected":""}>HELOC</option></select>
-        <label class="label" for="formBalance">Current Balance</label><input id="formBalance" type="number" inputmode="decimal" value="${Number(account?.balance)||0}">
-        <label class="label" for="formApr">Standard APR</label><input id="formApr" type="number" inputmode="decimal" value="${Number(account?.apr)||0}">
-        <label class="label" for="formMin">Minimum Payment</label><input id="formMin" type="number" inputmode="decimal" value="${Number(account?.min)||0}">
-        <label class="label" for="formStatementDay">Statement Day</label><input id="formStatementDay" inputmode="numeric" value="${UI.escapeHtml(account?.statementDay||"")}" placeholder="e.g., 15th">
+        <div class="label">What would you like to add?</div>
+        <label class="label" for="formType">Account Type</label><select id="formType" data-action="accountTypeChanged">
+          <option ${account?.type==="Credit Card"?"selected":""}>Credit Card</option>
+          <option ${account?.type==="Auto Loan"?"selected":""}>Auto Loan</option>
+          <option ${account?.type==="Personal Loan"?"selected":""}>Personal Loan</option>
+          <option ${account?.type==="Student Loan"?"selected":""}>Student Loan</option>
+          <option ${account?.type==="HELOC"?"selected":""}>HELOC</option>
+          <option ${account?.type==="Emergency Fund"?"selected":""}>Emergency Fund</option>
+          <option ${account?.type==="Retirement"?"selected":""}>Retirement</option>
+        </select>
+        <p class="sub" id="accountTypeHelp">${kind==="foundation"?"Foundation accounts track what you are building.":"Debt accounts track what you are paying down."}</p>
       </div>
-      <div class="card promoCard"><label class="toggleRow"><span><span class="label">Promotional APR</span><span class="sub">Track intro rates and expiration dates.</span></span><input id="formPromo" type="checkbox" ${promoOn?"checked":""}></label><div id="promoFields" class="${promoOn?"":"hidden"}"><label class="label" for="formPromoApr">Current Promo APR</label><input id="formPromoApr" type="number" inputmode="decimal" value="${Number(account?.promoApr)||0}"><label class="label" for="formPromoExpires">Expires</label><input id="formPromoExpires" type="date" value="${UI.escapeHtml(account?.promoExpires||"")}"><label class="label" for="formStandardApr">Standard APR After</label><input id="formStandardApr" type="number" inputmode="decimal" value="${Number(account?.standardApr||account?.apr)||0}"><div class="helper" id="promoReviews">${account?.promoExpires?`${E.weeklyReviewsUntil(account.promoExpires)} week${E.weeklyReviewsUntil(account.promoExpires)===1?"":"s"} remaining`:"Add an expiration date to see weeks remaining."}</div></div></div>
+      <div class="card">
+        <label class="label" for="formName">Account Name</label><input id="formName" value="${UI.escapeHtml(account?.name||"")}" placeholder="${kind==="foundation"?"e.g., Emergency Fund":"e.g., Chase Freedom"}">
+        <label class="label" for="formBalance">Current Balance</label><input id="formBalance" type="number" inputmode="decimal" value="${Number(account?.balance)||0}">
+        <div id="debtFields" class="${kind==="foundation"?"hidden":""}">
+          <label class="label" for="formApr">Standard APR</label><input id="formApr" type="number" inputmode="decimal" value="${Number(account?.apr)||0}">
+          <label class="label" for="formMin">Minimum Payment</label><input id="formMin" type="number" inputmode="decimal" value="${Number(account?.min)||0}">
+          <label class="label" for="formStatementDay">Statement Day</label><input id="formStatementDay" inputmode="numeric" value="${UI.escapeHtml(account?.statementDay||"")}" placeholder="e.g., 15th">
+        </div>
+      </div>
+      <div id="promoCard" class="card promoCard ${kind==="foundation"?"hidden":""}"><label class="toggleRow"><span><span class="label">Promotional APR</span><span class="sub">Track intro rates and expiration dates.</span></span><input id="formPromo" type="checkbox" ${promoOn?"checked":""}></label><div id="promoFields" class="${promoOn?"":"hidden"}"><label class="label" for="formPromoApr">Current Promo APR</label><input id="formPromoApr" type="number" inputmode="decimal" value="${Number(account?.promoApr)||0}"><label class="label" for="formPromoExpires">Expires</label><input id="formPromoExpires" type="date" value="${UI.escapeHtml(account?.promoExpires||"")}"><label class="label" for="formStandardApr">Standard APR After</label><input id="formStandardApr" type="number" inputmode="decimal" value="${Number(account?.standardApr||account?.apr)||0}"><div class="helper" id="promoReviews">${account?.promoExpires?`${E.weeklyReviewsUntil(account.promoExpires)} week${E.weeklyReviewsUntil(account.promoExpires)===1?"":"s"} remaining`:"Add an expiration date to see weeks remaining."}</div></div></div>
       <div class="card"><label class="label" for="formNote">Notes</label><textarea id="formNote" placeholder="Optional">${UI.escapeHtml(account?.note||"")}</textarea></div>
       <div class="formFooter"><button class="btn formSaveBtn" data-action="saveAccount" data-id="${account?.id||""}">${isEdit?"Save Changes":"Save Account"}</button></div>`;
     show("accounts");setTimeout(()=>wirePromoForm(),0);
@@ -342,7 +393,7 @@
     screens.settings.innerHTML=`<div class="screenTitle">Settings</div>
       ${updateInfo?`<div class="updateBanner"><div><b>New version available</b><div class="sub">${UI.escapeHtml(updateInfo.version||"Update")}</div></div><button class="smallBtn" data-action="reloadUpdate">Reload</button></div>`:""}
       <div class="card"><div class="settingsGroup"><div class="label">Preferences</div><button class="settingRow tappable" data-action="editReviewDay"><span>Weekly Review Day</span><span><span class="muted">${UI.escapeHtml(data.reviewDay)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editReviewTime"><span>Review Time</span><span><span class="muted">${UI.escapeHtml(data.reviewTime)}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="editStrategy"><span>Focus Strategy</span><span><span class="muted">${UI.strategyLabel(data.strategy)}</span><span class="miniChev">›</span></span></button></div></div>
-      <div class="card"><div class="label">Privacy</div><div class="value">Local</div><div class="sub">No bank connections. Data stays in this browser unless exported.</div></div>
+      <div class="card"><div class="label">Privacy</div><div class="value">Local</div><div class="sub">No bank connections. Your information stays on this device unless you export it.</div></div>
       <div class="card"><button class="settingRow tappable" data-action="tapVersion"><span>Version</span><span><span class="muted">${APP_VERSION} · Build ${APP_BUILD}</span><span class="miniChev">›</span></span></button><button class="settingRow tappable" data-action="forceUpdateCheck"><span>Check for Update</span><span class="miniChev">›</span></button></div>
       ${dev?`<div class="card"><div class="label">Developer</div><button class="settingRow tappable" data-action="loadDemoData"><span>Load Demo Data</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="clearAppCache"><span>Clear App Cache</span><span class="miniChev">›</span></button><button class="settingRow tappable" data-action="resetAll"><span class="dangerText">Reset Local Data</span><span class="miniChev">›</span></button></div>`:""}
       <button class="btn secondary" data-action="exportData">Export Backup</button>${dev?"":`<button class="btn danger" data-action="resetAll">Reset Local Data</button>`}`;

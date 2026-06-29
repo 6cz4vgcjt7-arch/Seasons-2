@@ -23,4 +23,9 @@ During this prototype stage, use demo or approximate data until the privacy and 
 
 ## Version
 
-v1.0 · Build 100
+v1.1.0 · Build 110
+
+
+## v1.1.0 Catch-Up
+
+This release brings the stable v1.0 app forward with the main product decisions we had locked in: Foundations, command-page refinement, season detail, focus-card navigation, and clean GitHub upload workflow.

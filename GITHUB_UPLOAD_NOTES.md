@@ -1,13 +1,16 @@
 # GitHub Upload Notes
 
-This is the clean v1.0 baseline restored from the known-good prior iteration.
-
 Upload all files in this ZIP to the root of the new `Seasons` repository.
 
 Commit message:
-Seasons v1.0 clean baseline
+Seasons v1.1.0 catch-up release
+
+Recommended GitHub Pages settings:
+- Source: Deploy from a branch
+- Branch: main
+- Folder: / (root)
 
 After upload:
-1. Enable GitHub Pages from `main` / root.
-2. Open the site in Safari first.
-3. Confirm Settings shows v1.0 / Build 100.
+1. Wait 1–2 minutes for GitHub Pages.
+2. Open the site in Safari/Chrome.
+3. Confirm Settings shows v1.1.0 / Build 110.

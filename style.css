@@ -100,3 +100,31 @@ html,body{font-family:var(--body)}
 .selectedSeason{border-color:rgba(95,118,95,.42);background:#F3F5EF}
 .seasonQuestion select{margin-bottom:0}
 .cycle.tiny{width:50px;height:50px}.cycle.tiny .cycleLeaf,.cycle.tiny .cycleLeaf .leafMark{width:20px;height:20px}.cycle.tiny .seg{stroke-width:2}.cycle.tiny .seg.filled{stroke-width:3.6}
+
+
+/* v1.1.0 catch-up release */
+.commandLogo{display:flex;justify-content:center;margin-top:-18px;margin-bottom:6px;opacity:.88}
+.commandLogo .cycle{width:54px;height:54px}
+.commandLogo .cycleLeaf,.commandLogo .leafMark{width:19px;height:19px}
+.commandReflection{font-family:var(--display);font-size:19px;line-height:1.25;text-align:center;color:var(--sage-dark);max-width:330px;margin:0 auto 16px}
+.compactDate{margin-bottom:14px}
+.commandCard{margin:12px 0}
+.primaryReview{padding:19px 20px}
+.compactBtn{padding:14px 16px;margin-top:14px}
+.tappableCard{cursor:pointer}
+.alignRight{text-align:right}
+.compactChev{font-size:24px;text-align:right}
+.foundationIcon{display:inline-block;margin-right:5px}
+.seasonDetailHero{display:flex;align-items:center;gap:18px}
+.bigSeason{font-size:42px}
+.quietMessage{background:rgba(255,254,250,.55);box-shadow:none}
+.selectedSeasonRow{border-color:rgba(95,118,95,.45);background:#F1F3ED}
+.changeLine{font-family:var(--display);font-size:30px;margin:10px 0}
+.changeLine.good{color:var(--sage-dark)}
+.changeLine.attention{color:#9A6A2E}
+.changeLine.neutral{color:var(--muted)}
+@media (max-width:430px){
+  .commandReflection{font-size:18px;margin-bottom:12px}
+  .screen{padding-top:calc(42px + env(safe-area-inset-top,0px))}
+  .date{font-size:42px}
+}
